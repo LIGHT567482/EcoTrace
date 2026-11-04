@@ -78,21 +78,33 @@ class Api {
   }
 
   /// True when the device can reach the API right now.
+  /// Probes the server health endpoint (root or under /api).
   Future<bool> ping() async {
-    try {
-      final res = await http
-          .get(
-            Uri.parse('$baseUrl/health/'),
-            headers: {'Accept': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 8));
-      final ok = res.statusCode >= 200 && res.statusCode < 300;
-      offline.setOnline(ok);
-      return ok;
-    } catch (_) {
-      offline.setOnline(false);
-      return false;
+    final origins = <String>{
+      baseUrl.replaceFirst(RegExp(r'/api/?$'), ''),
+      // Fallback if baseUrl has no /api suffix
+      baseUrl,
+    };
+    for (final origin in origins) {
+      for (final path in ['/health/', '/api/health/']) {
+        try {
+          final res = await http
+              .get(
+                Uri.parse('$origin$path'),
+                headers: {'Accept': 'application/json'},
+              )
+              .timeout(const Duration(seconds: 8));
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            offline.setOnline(true);
+            return true;
+          }
+        } catch (_) {
+          // try next
+        }
+      }
     }
+    offline.setOnline(false);
+    return false;
   }
 
   /// Flush queued offline mutations to the server, then refresh caches.
