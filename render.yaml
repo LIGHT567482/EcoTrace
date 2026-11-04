@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: ecotrace-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt && pip install gunicorn
+    startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+    healthCheckPath: /api/
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "0"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        sync: false
+      - key: CORS_ALLOW_ALL
+        value: "0"
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: USE_SQLITE
+        value: "0"
+      - key: DB_NAME
+        fromDatabase:
+          name: ecotrace-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: ecotrace-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: ecotrace-db
+          property: password
+      - key: DB_HOST
+        fromDatabase:
+          name: ecotrace-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: ecotrace-db
+          property: port
+
+databases:
+  - name: ecotrace-db
+    plan: free
+    databaseName: ecotrace

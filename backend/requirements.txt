@@ -1,4 +1,5 @@
 Django>=6.1,<7
+gunicorn>=23
 djangorestframework>=3.18
 djangorestframework-simplejwt>=5.5
 django-cors-headers>=4.9
