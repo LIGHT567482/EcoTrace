@@ -1,4 +1,7 @@
-const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const DEFAULT_BASE = import.meta.env.DEV
+  ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+  : "https://ecotrace-api-sr9f.onrender.com/api";
+const BASE = (import.meta.env.VITE_API_URL || DEFAULT_BASE).replace(/\/+$/, "");
 
 export function getAccess() {
   return localStorage.getItem("ecotrace_access");
