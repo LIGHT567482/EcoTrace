@@ -33,12 +33,19 @@ class _ItemsScreenState extends State<ItemsScreen> {
   Future<void> load() async {
     final api = context.read<Session>().api;
     try {
-      final catData = await api.request('/categories/');
+      final catData = await api.request('/categories/?page_size=100');
       final cats = ((catData['results'] ?? catData) as List<dynamic>)
           .map((e) => Category.fromJson(e as Map<String, dynamic>))
+          .map(
+            (c) => Category(
+              id: c.id,
+              name: c.name,
+              types: c.types.where((t) => t.isActive).toList(),
+            ),
+          )
           .where((c) => c.types.isNotEmpty)
           .toList();
-      final itemData = await api.request('/items/');
+      final itemData = await api.request('/items/?page_size=100');
       final its = (itemData['results'] ?? itemData) as List<dynamic>;
       setState(() {
         categories = cats;
@@ -61,12 +68,16 @@ class _ItemsScreenState extends State<ItemsScreen> {
     });
     try {
       final api = context.read<Session>().api;
-      await api.request('/items/', method: 'POST', body: {
-        'item_type': itemType!.id,
-        'quantity': int.tryParse(quantity.text) ?? 1,
-        'condition': condition,
-        'notes': notes.text,
-      });
+      await api.request(
+        '/items/',
+        method: 'POST',
+        body: {
+          'item_type': itemType!.id,
+          'quantity': int.tryParse(quantity.text) ?? 1,
+          'condition': condition,
+          'notes': notes.text,
+        },
+      );
       notes.clear();
       await load();
     } catch (e) {
@@ -94,8 +105,10 @@ class _ItemsScreenState extends State<ItemsScreen> {
         Row(
           children: [
             const Expanded(
-              child: Text('Log your e-waste',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              child: Text(
+                'Log your e-waste',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
             ),
             FilledButton.tonal(
               onPressed: () => Navigator.push(
@@ -117,7 +130,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   initialValue: category,
                   decoration: const InputDecoration(labelText: 'Category'),
                   items: categories
-                      .map((c) => DropdownMenuItem(value: c, child: Text(c.name)))
+                      .map(
+                        (c) => DropdownMenuItem(value: c, child: Text(c.name)),
+                      )
                       .toList(),
                   onChanged: (c) => setState(() {
                     category = c;
@@ -129,11 +144,14 @@ class _ItemsScreenState extends State<ItemsScreen> {
                   initialValue: itemType,
                   decoration: const InputDecoration(labelText: 'Type'),
                   items: (category?.types ?? [])
-                      .map((t) => DropdownMenuItem(
-                            value: t,
-                            child: Text(
-                                '${t.name} · ${formatUGX(t.rewardUgx)}'),
-                          ))
+                      .map(
+                        (t) => DropdownMenuItem(
+                          value: t,
+                          child: Text(
+                            '${t.name} · ${formatPoints(t.pointsPerItem)} pts/item',
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (t) => setState(() => itemType = t),
                 ),
@@ -144,22 +162,31 @@ class _ItemsScreenState extends State<ItemsScreen> {
                       child: TextField(
                         controller: quantity,
                         keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'Quantity'),
+                        decoration: const InputDecoration(
+                          labelText: 'Quantity',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
                         initialValue: condition,
-                        decoration: const InputDecoration(labelText: 'Condition'),
+                        decoration: const InputDecoration(
+                          labelText: 'Condition',
+                        ),
                         items: const [
                           DropdownMenuItem(
-                              value: 'WORKING', child: Text('Working')),
+                            value: 'WORKING',
+                            child: Text('Working'),
+                          ),
                           DropdownMenuItem(
-                              value: 'BROKEN', child: Text('Broken')),
+                            value: 'BROKEN',
+                            child: Text('Broken'),
+                          ),
                           DropdownMenuItem(
-                              value: 'DAMAGED', child: Text('Damaged')),
+                            value: 'DAMAGED',
+                            child: Text('Damaged'),
+                          ),
                         ],
                         onChanged: (v) =>
                             setState(() => condition = v ?? 'BROKEN'),
@@ -170,8 +197,9 @@ class _ItemsScreenState extends State<ItemsScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: notes,
-                  decoration:
-                      const InputDecoration(labelText: 'Notes (optional)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -186,31 +214,34 @@ class _ItemsScreenState extends State<ItemsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        const Text('Your logged items',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        const Text(
+          'Your logged items',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
         const SizedBox(height: 8),
-        ...items.map((it) => Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text('${it.typeName} × ${it.quantity}'),
-                subtitle: Text(
-                    '${it.categoryName} · ${it.condition}'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(formatUGX(it.rewardUgx),
-                        style: const TextStyle(
-                            fontSize: 12, color: kBrandDark)),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => remove(it.id),
-                    ),
-                  ],
-                ),
+        ...items.map(
+          (it) => Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              title: Text('${it.typeName} × ${it.quantity}'),
+              subtitle: Text('${it.categoryName} · ${it.condition}'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${formatPoints(it.points)} pts',
+                    style: const TextStyle(fontSize: 12, color: kBrandDark),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    onPressed: () => remove(it.id),
+                  ),
+                ],
               ),
-            )),
-        if (items.isEmpty)
-          const EmptyView(message: 'Nothing logged yet.'),
+            ),
+          ),
+        ),
+        if (items.isEmpty) const EmptyView(message: 'Nothing logged yet.'),
       ],
     );
   }

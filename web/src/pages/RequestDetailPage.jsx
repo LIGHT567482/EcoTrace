@@ -9,6 +9,7 @@ export default function RequestDetailPage() {
   const [req, setReq] = useState(null);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
 
   const load = useCallback(() => {
     api(`/requests/${id}/`)
@@ -21,7 +22,8 @@ export default function RequestDetailPage() {
   async function act(path, body) {
     setError("");
     try {
-      await api(`/requests/${id}/${path}`, { method: "POST", body: body || {} });
+      await api(`/requests/${id}/${path}/`, { method: "POST", body: body || {} });
+      setVerificationCode("");
       load();
     } catch (e) {
       setError(e.message);
@@ -86,6 +88,13 @@ export default function RequestDetailPage() {
             Consumer: <strong>{req.consumer_detail?.full_name || req.consumer_detail?.phone}</strong>
             <br />
             Collector: {req.collector_name || "unassigned"}
+            {req.request_type === "PICKUP" && (
+              <>
+                <br />
+                Pickup proof: {req.pickup_confirmed ? "confirmed by consumer" : "not yet confirmed"}
+                {req.pickup_confirmed_at && <> · {formatDate(req.pickup_confirmed_at)}</>}
+              </>
+            )}
             <br />
             {req.request_type === "PICKUP"
               ? `Pickup address: ${req.pickup_address || "-"}`
@@ -106,7 +115,9 @@ export default function RequestDetailPage() {
             {req.consumer_note && <>Note: {req.consumer_note}</>}
           </p>
           {req.reward_credited && (
-            <div className="alert success">Reward credited to the consumer wallet.</div>
+            <div className="alert success">
+              {req.points_earned.toLocaleString()} points credited to the consumer wallet.
+            </div>
           )}
           {req.certificate && (
             <div className="alert success">
@@ -155,6 +166,9 @@ export default function RequestDetailPage() {
               Claim pickup
             </button>
           )}
+          {isOwner && req.request_type === "PICKUP" && req.status === "ASSIGNED" && (
+            <p className="sub">Your one-time pickup verification code is in your notifications. Share it with the collector at handoff.</p>
+          )}
           {isCollector &&
             ["ASSIGNED", "COLLECTED"].includes(req.status) &&
             req.events?.some(
@@ -163,9 +177,33 @@ export default function RequestDetailPage() {
               <>
                 {req.status === "ASSIGNED" && (
                   <>
-                    <button className="btn" onClick={() => act("transition", { status: "COLLECTED", note })}>
-                      Mark collected
-                    </button>
+                    {req.request_type === "PICKUP" ? (
+                      <>
+                        <label className="field">
+                          Consumer pickup code
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]{8}"
+                            maxLength={8}
+                            value={verificationCode}
+                            onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 8))}
+                            required
+                          />
+                        </label>
+                        <button
+                          className="btn"
+                          disabled={verificationCode.length !== 8}
+                          onClick={() => act("transition", { status: "COLLECTED", note, verification_code: verificationCode })}
+                        >
+                          Verify pickup
+                        </button>
+                      </>
+                    ) : (
+                      <button className="btn" onClick={() => act("transition", { status: "COLLECTED", note })}>
+                        Mark collected
+                      </button>
+                    )}
                     <button className="btn ghost" onClick={() => act("release")}>
                       Release
                     </button>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, formatUGX } from "../../api";
+import { api } from "../../api";
 
 export default function NewRequestPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [dropoffs, setDropoffs] = useState([]);
+  const [policy, setPolicy] = useState({ pickup_points_percent: 50, dropoff_points_percent: 100 });
   const [selected, setSelected] = useState([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -28,6 +29,9 @@ export default function NewRequestPage() {
         if (list[0]) setForm((f) => ({ ...f, dropoff_point: list[0].id }));
       })
       .catch(() => {});
+    api("/wallet/policy/")
+      .then(setPolicy)
+      .catch(() => {});
   }, []);
 
   function toggle(id) {
@@ -35,7 +39,11 @@ export default function NewRequestPage() {
   }
 
   const chosen = items.filter((i) => selected.includes(i.id));
-  const reward = chosen.reduce((s, i) => s + Number(i.reward_ugx || 0), 0);
+  const reward = chosen.reduce((s, i) => s + Number(i.points || 0), 0);
+  const rewardRate = form.request_type === "PICKUP"
+    ? policy.pickup_points_percent
+    : policy.dropoff_points_percent;
+  const pointsEstimate = Math.round(reward * Number(rewardRate || 0) / 100);
 
   async function submit(e) {
     e.preventDefault();
@@ -100,7 +108,7 @@ export default function NewRequestPage() {
                   </span>
                 </span>
                 <span className="right">
-                  <small>{formatUGX(it.reward_ugx)}</small>
+                  <small>{Number(it.points).toLocaleString()} base pts</small>
                 </span>
               </label>
             ))}
@@ -173,9 +181,9 @@ export default function NewRequestPage() {
         <div className="card">
           <h3>3 · Summary</h3>
           <p className="sub">
-            {chosen.length} item row{chosen.length === 1 ? "" : "s"} selected · reward{" "}
-            {formatUGX(reward)} credited after
-            verified disposal.
+            {chosen.length} item row{chosen.length === 1 ? "" : "s"} selected · about{" "}
+            {pointsEstimate.toLocaleString()} points at the current {rewardRate}% rate, credited
+            after verified processing.
           </p>
           <button className="btn" disabled={busy || !selected.length}>
             {busy ? "Submitting…" : "Submit request"}

@@ -27,7 +27,7 @@ class _RedemptionsScreenState extends State<RedemptionsScreen> {
   Future<void> load() async {
     try {
       final api = context.read<Session>().api;
-      final data = await api.request('/redemptions/');
+      final data = await api.request('/redemptions/?page_size=100');
       final list = (data['results'] ?? data) as List<dynamic>;
       setState(() => items = list
           .map((e) => Redemption.fromJson(e as Map<String, dynamic>))

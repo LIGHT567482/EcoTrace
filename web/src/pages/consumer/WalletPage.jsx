@@ -2,8 +2,18 @@ import { useEffect, useState } from "react";
 import { api, formatDate, formatUGX } from "../../api";
 
 export default function WalletPage() {
-  const [data, setData] = useState({ wallet: { balance: 0 }, transactions: [] });
-  const [form, setForm] = useState({ amount: "", destination: "", method: "MOBILE_MONEY" });
+  const [data, setData] = useState({
+    wallet: { balance: 0, points_balance: 0 },
+    point_transactions: [],
+    policy: { minimum_redemption_points: 1000, ugx_per_point: "1.00" },
+  });
+  const [form, setForm] = useState({
+    redeem_mode: "points",
+    points: "",
+    amount: "",
+    destination: "",
+    method: "MOBILE_MONEY",
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -23,13 +33,17 @@ export default function WalletPage() {
       await api("/wallet/redeem/", {
         method: "POST",
         body: {
-          amount: Number(form.amount),
+          [form.redeem_mode]: Number(form[form.redeem_mode]),
           destination: form.destination,
           method: form.method,
         },
       });
-      setSuccess("Redemption requested - the admin will process your payout.");
-      setForm({ amount: "", destination: form.destination, method: form.method });
+      setSuccess("Redemption requested. The admin will process your payout.");
+      setForm({
+        ...form,
+        points: "",
+        amount: "",
+      });
       load();
     } catch (err) {
       setError(err.message);
@@ -49,22 +63,45 @@ export default function WalletPage() {
 
       <div className="grid cols-2">
         <div className="card">
-          <h3>Balance</h3>
-          <div className="stat">{formatUGX(data.wallet.balance)}</div>
-          <p className="sub">Redeem via mobile money or airtime.</p>
+          <h3>Points balance</h3>
+          <div className="stat">{Number(data.wallet.points_balance || 0).toLocaleString()} pts</div>
+          <p className="sub">
+            Current value: {formatUGX(Number(data.wallet.points_balance || 0) * Number(data.policy.ugx_per_point || 0))}
+            <br />
+            Minimum redemption: {Number(data.policy.minimum_redemption_points || 0).toLocaleString()} pts
+          </p>
+          {Number(data.wallet.balance || 0) > 0 && (
+            <p className="sub">Existing wallet funds: {formatUGX(data.wallet.balance)}</p>
+          )}
           <form className="form" onSubmit={redeem}>
             <label className="field">
-              Amount (UGX)
+              Redeem from
+              <select
+                value={form.redeem_mode}
+                onChange={(e) => setForm({ ...form, redeem_mode: e.target.value })}
+              >
+                <option value="points">Points balance</option>
+                <option value="amount" disabled={Number(data.wallet.balance) <= 0}>
+                  Existing UGX balance
+                </option>
+              </select>
+            </label>
+            <label className="field">
+              {form.redeem_mode === "points" ? "Points to redeem" : "UGX to redeem"}
               <input
                 type="number"
-                min="1000"
-                value={form.amount}
-                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                min={form.redeem_mode === "points"
+                  ? data.policy.minimum_redemption_points
+                  : Number(data.policy.minimum_redemption_points) * Number(data.policy.ugx_per_point)}
+                max={form.redeem_mode === "points" ? data.wallet.points_balance : data.wallet.balance}
+                step={form.redeem_mode === "points" ? "1" : "0.01"}
+                value={form[form.redeem_mode]}
+                onChange={(e) => setForm({ ...form, [form.redeem_mode]: e.target.value })}
                 required
               />
             </label>
             <label className="field">
-              Payout number
+              Mobile money / airtime number
               <input
                 value={form.destination}
                 onChange={(e) => setForm({ ...form, destination: e.target.value })}
@@ -82,32 +119,39 @@ export default function WalletPage() {
                 <option value="AIRTIME">Airtime</option>
               </select>
             </label>
-            <button className="btn">Request redemption</button>
+            <button
+              className="btn"
+              disabled={form.redeem_mode === "points"
+                ? Number(data.wallet.points_balance) < Number(data.policy.minimum_redemption_points)
+                : Number(data.wallet.balance) < Number(data.policy.minimum_redemption_points) * Number(data.policy.ugx_per_point)}
+            >
+              Request redemption
+            </button>
           </form>
         </div>
 
         <div className="card">
-          <h3>Transactions</h3>
+          <h3>Points history</h3>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>When</th>
-                  <th>Type</th>
-                  <th>Amount</th>
+                  <th>Activity</th>
+                  <th>Points</th>
                   <th>Reason</th>
                 </tr>
               </thead>
               <tbody>
-                {data.transactions.map((t) => (
+                {data.point_transactions.map((t) => (
                   <tr key={t.id}>
                     <td>{formatDate(t.created_at)}</td>
                     <td>
                       <span className={`status ${t.kind === "CREDIT" ? "PROCESSED" : "CANCELLED"}`}>
-                        {t.kind}
+                        {t.kind === "CREDIT" ? "Earned" : "Redeemed"}
                       </span>
                     </td>
-                    <td>{formatUGX(t.amount)}</td>
+                    <td>{Number(t.points).toLocaleString()} pts</td>
                     <td>
                       {t.reason}
                       {t.request_reference && (
@@ -119,7 +163,7 @@ export default function WalletPage() {
                     </td>
                   </tr>
                 ))}
-                {!data.transactions.length && (
+                {!data.point_transactions.length && (
                   <tr>
                     <td colSpan={4} className="empty">
                       No transactions yet.

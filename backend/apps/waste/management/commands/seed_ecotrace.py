@@ -87,6 +87,7 @@ class Command(BaseCommand):
                     name=type_name,
                     defaults={
                         "reward_ugx": reward,
+                        "points_per_item": reward,
                         "carbon_factor_kg": carbon_factor,
                         "hazardous": hazardous,
                         "is_active": True,

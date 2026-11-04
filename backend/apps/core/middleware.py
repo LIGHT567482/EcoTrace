@@ -1,10 +1,12 @@
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 
 from .models import AuditLog
 
 
 class AuditLogMiddleware:
     audited_methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+    skipped_paths = ("/api/audit-logs/", "/api/health/", "/health/")
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -16,7 +18,7 @@ class AuditLogMiddleware:
         is_django_admin = path.startswith("/admin/")
         if not is_api and not is_django_admin:
             return response
-        if path.startswith("/api/audit-logs/"):
+        if path.startswith(self.skipped_paths):
             return response
         if (
             request.method == "GET"
@@ -28,13 +30,18 @@ class AuditLogMiddleware:
             return response
 
         actor = self._get_actor(request, response)
-        AuditLog.objects.create(
-            actor=actor,
-            action=f"{request.method} {path}",
-            method=request.method,
-            path=path,
-            status_code=response.status_code,
-        )
+        try:
+            AuditLog.objects.create(
+                actor=actor,
+                action=f"{request.method} {path}",
+                method=request.method,
+                path=path,
+                status_code=response.status_code,
+            )
+        except DatabaseError:
+            # Never let audit logging (or a database outage) break the
+            # response the client is actually waiting for.
+            pass
         return response
 
     @staticmethod

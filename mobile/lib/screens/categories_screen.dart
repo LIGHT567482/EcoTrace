@@ -17,7 +17,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   String error = '';
   Category? category;
   final name = TextEditingController();
-  final reward = TextEditingController(text: '1000');
+  final pointsPerItem = TextEditingController(text: '1000');
 
   @override
   void initState() {
@@ -28,7 +28,7 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> load() async {
     try {
       final api = context.read<Session>().api;
-      final data = await api.request('/categories/');
+      final data = await api.request('/categories/?page_size=100');
       final list = ((data['results'] ?? data) as List<dynamic>)
           .map((e) => Category.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -45,11 +45,15 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
     if (category == null || name.text.trim().isEmpty) return;
     try {
       final api = context.read<Session>().api;
-      await api.request('/item-types/', method: 'POST', body: {
-        'category': category!.id,
-        'name': name.text.trim(),
-        'reward_ugx': double.tryParse(reward.text) ?? 0,
-      });
+      await api.request(
+        '/item-types/',
+        method: 'POST',
+        body: {
+          'category': category!.id,
+          'name': name.text.trim(),
+          'points_per_item': int.tryParse(pointsPerItem.text) ?? 0,
+        },
+      );
       name.clear();
       await load();
     } catch (e) {
@@ -60,8 +64,11 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   Future<void> toggle(ItemType t) async {
     try {
       final api = context.read<Session>().api;
-      await api.request('/item-types/${t.id}/',
-          method: 'PATCH', body: {'is_active': !t.isActive});
+      await api.request(
+        '/item-types/${t.id}/',
+        method: 'PATCH',
+        body: {'is_active': !t.isActive},
+      );
       await load();
     } catch (e) {
       setState(() => error = e.toString());
@@ -85,8 +92,10 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                     initialValue: category,
                     decoration: const InputDecoration(labelText: 'Category'),
                     items: categories
-                        .map((c) =>
-                            DropdownMenuItem(value: c, child: Text(c.name)))
+                        .map(
+                          (c) =>
+                              DropdownMenuItem(value: c, child: Text(c.name)),
+                        )
                         .toList(),
                     onChanged: (c) => setState(() => category = c),
                   ),
@@ -97,48 +106,60 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
                   ),
                   const SizedBox(height: 10),
                   TextField(
-                    controller: reward,
+                    controller: pointsPerItem,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                        labelText: 'Reward UGX per item'),
+                      labelText: 'Points per item',
+                    ),
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                        onPressed: add, child: const Text('Add item type')),
+                      onPressed: add,
+                      child: const Text('Add item type'),
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 16),
-          ...categories.map((c) => Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 15)),
-                      const SizedBox(height: 6),
-                      ...c.types.map((t) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(t.name),
-                            subtitle: Text(
-                                formatUGX(t.rewardUgx)),
-                            trailing: TextButton(
-                              onPressed: () => toggle(t),
-                              child: Text(t.isActive ? 'Disable' : 'Enable'),
-                            ),
-                          )),
-                    ],
-                  ),
+          ...categories.map(
+            (c) => Card(
+              margin: const EdgeInsets.only(bottom: 10),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    ...c.types.map(
+                      (t) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(t.name),
+                        subtitle: Text(
+                          '${formatPoints(t.pointsPerItem)} pts / item',
+                        ),
+                        trailing: TextButton(
+                          onPressed: () => toggle(t),
+                          child: Text(t.isActive ? 'Disable' : 'Enable'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );

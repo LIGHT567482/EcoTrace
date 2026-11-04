@@ -33,7 +33,7 @@ class _RequestsListScreenState extends State<RequestsListScreen> {
     });
     try {
       final api = context.read<Session>().api;
-      final params = <String, String>{};
+      final params = <String, String>{'page_size': '100'};
       if (status.isNotEmpty) params['status'] = status;
       if (widget.scope == 'available') params['scope'] = 'available';
       if (widget.scope == 'incoming') params['status'] = 'IN_TRANSIT';

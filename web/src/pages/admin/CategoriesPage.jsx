@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, formatUGX } from "../../api";
+import { api } from "../../api";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -10,7 +10,7 @@ export default function CategoriesPage() {
   const [form, setForm] = useState({
     category: "",
     name: "",
-    reward_ugx: 1000,
+    points_per_item: 1000,
   });
 
   function load() {
@@ -63,7 +63,7 @@ export default function CategoriesPage() {
         body: {
           category: Number(form.category),
           name: form.name,
-          reward_ugx: Number(form.reward_ugx),
+          points_per_item: Number(form.points_per_item),
         },
       });
       setForm({ ...form, name: "" });
@@ -143,11 +143,13 @@ export default function CategoriesPage() {
             />
           </label>
           <label className="field">
-            Reward (UGX/item)
+            Points per item
             <input
               type="number"
-              value={form.reward_ugx}
-              onChange={(e) => setForm({ ...form, reward_ugx: e.target.value })}
+              min="0"
+              step="1"
+              value={form.points_per_item}
+              onChange={(e) => setForm({ ...form, points_per_item: e.target.value })}
             />
           </label>
           <button className="btn" disabled={!form.category}>
@@ -175,7 +177,7 @@ export default function CategoriesPage() {
                 <thead>
                   <tr>
                     <th>Type</th>
-                    <th>Reward</th>
+                    <th>Points / item</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -183,7 +185,7 @@ export default function CategoriesPage() {
                   {c.types.map((t) => (
                     <tr key={t.id} style={{ opacity: t.is_active ? 1 : 0.5 }}>
                       <td>{t.name}</td>
-                      <td>{formatUGX(t.reward_ugx)}</td>
+                      <td>{Number(t.points_per_item).toLocaleString()} pts</td>
                       <td>
                         <button
                           className="btn ghost small"

@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
-from .models import AuditLog, Notification
+from .models import AuditLog, Notification, StakeholderMessage
 
 User = get_user_model()
 
@@ -75,6 +75,39 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = ["id", "request_id", "title", "body", "is_read", "created_at"]
+        read_only_fields = fields
+
+
+class StakeholderMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.CharField(source="sender.full_name", read_only=True)
+    sender_role = serializers.CharField(source="sender.role", read_only=True)
+    recipient_name = serializers.CharField(source="recipient.full_name", read_only=True)
+
+    class Meta:
+        model = StakeholderMessage
+        fields = [
+            "id",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "recipient",
+            "recipient_name",
+            "body",
+            "is_read",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class CreateStakeholderMessageSerializer(serializers.Serializer):
+    recipient_id = serializers.IntegerField(min_value=1)
+    body = serializers.CharField(max_length=2000, trim_whitespace=True)
+
+
+class StakeholderContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "phone", "full_name", "role", "town"]
         read_only_fields = fields
 
 

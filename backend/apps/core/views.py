@@ -7,15 +7,111 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .permissions import IsAdmin
-from .models import AuditLog, Notification
+from .models import AuditLog, Notification, StakeholderMessage
 from .serializers import (
     AdminUserSerializer,
     AuditLogSerializer,
+    CreateStakeholderMessageSerializer,
     NotificationSerializer,
+    StakeholderContactSerializer,
+    StakeholderMessageSerializer,
     UserSerializer,
 )
 
 User = get_user_model()
+
+MESSAGE_ROLES = {
+    User.Role.CONSUMER: (User.Role.COLLECTOR,),
+    User.Role.COLLECTOR: (User.Role.CONSUMER, User.Role.RECYCLER),
+    User.Role.RECYCLER: (User.Role.COLLECTOR, User.Role.ADMIN),
+    User.Role.ADMIN: (User.Role.RECYCLER,),
+}
+
+
+def get_message_contacts(user):
+    contacts = User.objects.filter(
+        is_active=True, role__in=MESSAGE_ROLES.get(user.role, ())
+    ).exclude(pk=user.pk)
+    if user.role in (User.Role.CONSUMER, User.Role.COLLECTOR):
+        contacts = contacts.filter(town__iexact=user.town)
+    elif user.role == User.Role.RECYCLER:
+        contacts = contacts.filter(
+            Q(role=User.Role.ADMIN) | Q(town__iexact=user.town)
+        )
+    return contacts.order_by("full_name", "phone")
+
+
+class StakeholderContactsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            StakeholderContactSerializer(
+                get_message_contacts(request.user), many=True
+            ).data
+        )
+
+
+class StakeholderMessageListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        messages = StakeholderMessage.objects.filter(
+            Q(sender=request.user) | Q(recipient=request.user)
+        ).select_related("sender", "recipient")
+        contact_id = request.query_params.get("with")
+        if contact_id:
+            if not get_message_contacts(request.user).filter(pk=contact_id).exists():
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            messages = messages.filter(
+                Q(sender=request.user, recipient_id=contact_id)
+                | Q(sender_id=contact_id, recipient=request.user)
+            )
+        messages.filter(recipient=request.user, is_read=False).update(is_read=True)
+        results = list(messages.order_by("-created_at", "-id")[:100])
+        results.reverse()
+        return Response({"results": StakeholderMessageSerializer(results, many=True).data})
+
+    def post(self, request):
+        input_serializer = CreateStakeholderMessageSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        recipient = get_message_contacts(request.user).filter(
+            pk=input_serializer.validated_data["recipient_id"]
+        ).first()
+        if recipient is None:
+            return Response(
+                {"recipient_id": ["You can only message an active stakeholder in your hierarchy and town."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        message = StakeholderMessage.objects.create(
+            sender=request.user,
+            recipient=recipient,
+            body=input_serializer.validated_data["body"],
+        )
+        Notification.objects.create(
+            user=recipient,
+            title=f"Message from {request.user.full_name or request.user.phone}",
+            body=message.body,
+        )
+        return Response(
+            StakeholderMessageSerializer(message).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class StakeholderMessageReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        message = StakeholderMessage.objects.filter(
+            pk=pk, recipient=request.user
+        ).first()
+        if message is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not message.is_read:
+            message.is_read = True
+            message.save(update_fields=["is_read"])
+        return Response(StakeholderMessageSerializer(message).data)
 
 
 class UserViewSet(viewsets.ModelViewSet):

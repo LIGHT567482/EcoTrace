@@ -125,6 +125,17 @@ String formatUGX(Object? value) {
   return 'UGX $buffer';
 }
 
+String formatPoints(Object? value) {
+  final n = int.tryParse('${value ?? 0}') ?? 0;
+  final digits = n.abs().toString();
+  final buffer = StringBuffer();
+  for (int i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return n < 0 ? '-$buffer' : buffer.toString();
+}
+
 String formatDate(String iso) {
   if (iso.isEmpty) return '-';
   final dt = DateTime.tryParse(iso)?.toLocal();

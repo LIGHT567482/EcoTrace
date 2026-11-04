@@ -4,9 +4,9 @@ services:
     runtime: python
     rootDir: backend
     plan: free
-    buildCommand: pip install -r requirements.txt && pip install gunicorn
+    buildCommand: pip install -r requirements.txt && pip install gunicorn && python manage.py migrate --noinput
     startCommand: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
-    healthCheckPath: /api/
+    healthCheckPath: /api/health/
     envVars:
       - key: DJANGO_DEBUG
         value: "0"

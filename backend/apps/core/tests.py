@@ -169,3 +169,63 @@ class AdminAuthenticationTests(TestCase):
         self.assertTrue(
             any(entry["id"] == log_entry.id for entry in response.data["results"])
         )
+
+
+class StakeholderMessageTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.consumer = User.objects.create_user(
+            phone="+256700222001", password="StrongPass123!", role=User.Role.CONSUMER,
+            full_name="Consumer", town="Kansanga", address="Private address",
+            latitude=0.3, longitude=32.6,
+        )
+        self.collector = User.objects.create_user(
+            phone="+256700222002", password="StrongPass123!", role=User.Role.COLLECTOR,
+            full_name="Collector", town="Kansanga",
+        )
+        self.recycler = User.objects.create_user(
+            phone="+256700222003", password="StrongPass123!", role=User.Role.RECYCLER,
+            full_name="Recycler", town="Makindye",
+        )
+        self.admin = User.objects.create_user(
+            phone="+256700222004", password="StrongPass123!", role=User.Role.ADMIN,
+            full_name="Admin", town="Kampala",
+        )
+
+    def test_hierarchy_messages_notify_recipients_without_exposing_private_contact_data(self):
+        self.client.force_authenticate(user=self.consumer)
+        contacts = self.client.get("/api/messages/contacts/")
+        self.assertEqual(contacts.status_code, 200)
+        self.assertEqual([contact["id"] for contact in contacts.data], [self.collector.id])
+        self.assertNotIn("address", contacts.data[0])
+        self.assertNotIn("latitude", contacts.data[0])
+
+        response = self.client.post(
+            "/api/messages/",
+            {"recipient_id": self.collector.id, "body": "Pickup is ready."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.collector, title="Message from Consumer", body="Pickup is ready."
+            ).exists()
+        )
+        response = self.client.post(
+            "/api/messages/",
+            {"recipient_id": self.admin.id, "body": "Skip the hierarchy"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+        self.client.force_authenticate(user=self.recycler)
+        contacts = self.client.get("/api/messages/contacts/")
+        self.assertEqual(
+            {contact["id"] for contact in contacts.data}, {self.admin.id}
+        )
+        response = self.client.post(
+            "/api/messages/",
+            {"recipient_id": self.admin.id, "body": "Collection received."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models.dart';
@@ -17,6 +18,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   CollectionRequest? request;
   String error = '';
   String note = '';
+  String verificationCode = '';
   bool busy = false;
 
   @override
@@ -36,8 +38,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             : const [];
         for (final row in results) {
           if (row is Map<String, dynamic> && row['id'] == widget.requestId) {
-            setState(() =>
-                request = CollectionRequest.fromJson(row));
+            setState(() => request = CollectionRequest.fromJson(row));
             return;
           }
         }
@@ -45,8 +46,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         return;
       }
       final data = await api.request('/requests/${widget.requestId}/');
-      setState(() =>
-          request = CollectionRequest.fromJson(data as Map<String, dynamic>));
+      setState(
+        () =>
+            request = CollectionRequest.fromJson(data as Map<String, dynamic>),
+      );
     } catch (e) {
       setState(() => error = e.toString());
     }
@@ -60,7 +63,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     try {
       final api = context.read<Session>().api;
       final res = await api.request(
-        '/requests/${widget.requestId}/$path',
+        '/requests/${widget.requestId}/$path/',
         method: 'POST',
         body: body ?? {},
       );
@@ -84,7 +87,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> _patchCachedStatus(
-      String path, Map<String, dynamic>? body) async {
+    String path,
+    Map<String, dynamic>? body,
+  ) async {
     final api = context.read<Session>().api;
     final cached = await api.offline.getCached('/requests/list/');
     if (cached is! Map<String, dynamic>) return;
@@ -167,32 +172,66 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                           Row(
                             children: [
                               StatusChip(
-                                  status: r.status, label: r.statusLabel),
+                                status: r.status,
+                                label: r.statusLabel,
+                              ),
                               const SizedBox(width: 8),
-                              Text(r.requestType,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
+                              Text(
+                                r.requestType,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text('Consumer: ${r.consumerName}',
-                              style: const TextStyle(color: kMuted)),
-                          Text('Collector: ${r.collectorName ?? 'unassigned'}',
-                              style: const TextStyle(color: kMuted)),
-                          if (r.pickupAddress.isNotEmpty)
-                            Text('Address: ${r.pickupAddress}',
-                                style: const TextStyle(color: kMuted)),
-                          if (r.dropoffName != null)
-                            Text('Drop-off: ${r.dropoffName}',
-                                style: const TextStyle(color: kMuted)),
                           Text(
-                              'Estimated Carbon Dioxide avoided: ~${r.carbonKg.toStringAsFixed(1)} kg',
-                              style: const TextStyle(color: kMuted)),
+                            'Consumer: ${r.consumerName}',
+                            style: const TextStyle(color: kMuted),
+                          ),
+                          Text(
+                            'Collector: ${r.collectorName ?? 'unassigned'}',
+                            style: const TextStyle(color: kMuted),
+                          ),
+                          if (r.requestType == 'PICKUP')
+                            Text(
+                              'Pickup proof: ${r.pickupConfirmed ? 'confirmed by consumer' : 'awaiting consumer confirmation'}'
+                              '${r.pickupConfirmedAt != null ? ' · ${formatDate(r.pickupConfirmedAt!)}' : ''}',
+                              style: const TextStyle(color: kMuted),
+                            ),
+                          if (user.isConsumer &&
+                              user.id == r.consumerId &&
+                              r.requestType == 'PICKUP' &&
+                              r.status == 'ASSIGNED')
+                            const Padding(
+                              padding: EdgeInsets.only(top: 6),
+                              child: Text(
+                                'Your one-time pickup code is in Notifications. Share it with the collector at handoff.',
+                                style: TextStyle(color: kMuted, fontSize: 13),
+                              ),
+                            ),
+                          if (r.pickupAddress.isNotEmpty)
+                            Text(
+                              'Address: ${r.pickupAddress}',
+                              style: const TextStyle(color: kMuted),
+                            ),
+                          if (r.dropoffName != null)
+                            Text(
+                              'Drop-off: ${r.dropoffName}',
+                              style: const TextStyle(color: kMuted),
+                            ),
+                          Text(
+                            'Estimated Carbon Dioxide avoided: ~${r.carbonKg.toStringAsFixed(1)} kg',
+                            style: const TextStyle(color: kMuted),
+                          ),
                           if (r.hazardousCount > 0)
                             Text(
-                                'Hazardous units: ${r.hazardousCount} (specialised handling)',
-                                style: const TextStyle(
-                                    color: Color(0xFF9B2F1C), fontSize: 13)),
+                              'Hazardous units: ${r.hazardousCount} (specialised handling)',
+                              style: const TextStyle(
+                                color: Color(0xFF9B2F1C),
+                                fontSize: 13,
+                              ),
+                            ),
                           if (r.rewardCredited)
                             Container(
                               margin: const EdgeInsets.only(top: 8),
@@ -201,9 +240,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                                 color: const Color(0xFFD8F3E3),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Text(
-                                'Reward credited to the consumer wallet.',
-                                style: TextStyle(color: kBrandDark),
+                              child: Text(
+                                '${formatPoints(r.pointsEarned)} points credited to the consumer wallet.',
+                                style: const TextStyle(color: kBrandDark),
                               ),
                             ),
                           if (r.certificate != null)
@@ -232,31 +271,38 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Items',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 15)),
+                          const Text(
+                            'Items',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          ...r.items.map((it) => Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '${it.typeName} × ${it.quantity}'
-                                        '${it.hazardous ? ' · Hazardous' : ''}'
-                                        ' · ~${it.carbonKg.toStringAsFixed(1)} kg Carbon Dioxide equivalent',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
+                          ...r.items.map(
+                            (it) => Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '${it.typeName} × ${it.quantity}'
+                                      '${it.hazardous ? ' · Hazardous' : ''}'
+                                      ' · ~${it.carbonKg.toStringAsFixed(1)} kg Carbon Dioxide equivalent',
+                                      style: const TextStyle(fontSize: 14),
                                     ),
-                                    Text(
-                                      formatUGX(it.rewardUgx),
-                                      style: const TextStyle(
-                                          color: kMuted, fontSize: 12),
+                                  ),
+                                  Text(
+                                    formatUGX(it.rewardUgx),
+                                    style: const TextStyle(
+                                      color: kMuted,
+                                      fontSize: 12,
                                     ),
-                                  ],
-                                ),
-                              )),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -268,36 +314,52 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Timeline',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 15)),
+                          const Text(
+                            'Timeline',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                          ),
                           const SizedBox(height: 10),
-                          ...r.events.map((e) => Container(
-                                margin: const EdgeInsets.only(left: 6, bottom: 10),
-                                decoration: const BoxDecoration(
-                                  border: Border(
-                                    left: BorderSide(color: kBrand, width: 3),
-                                  ),
+                          ...r.events.map(
+                            (e) => Container(
+                              margin: const EdgeInsets.only(
+                                left: 6,
+                                bottom: 10,
+                              ),
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(color: kBrand, width: 3),
                                 ),
-                                padding: const EdgeInsets.only(left: 10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(e.status,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600)),
-                                    if (e.note.isNotEmpty)
-                                      Text(e.note,
-                                          style: const TextStyle(fontSize: 13)),
-                                    Text(
-                                      '${formatDate(e.createdAt)}'
-                                      '${e.actorName != null ? ' · ${e.actorName}' : ''}',
-                                      style: const TextStyle(
-                                          color: kMuted, fontSize: 12),
+                              ),
+                              padding: const EdgeInsets.only(left: 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    e.status,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
                                     ),
-                                  ],
-                                ),
-                              )),
+                                  ),
+                                  if (e.note.isNotEmpty)
+                                    Text(
+                                      e.note,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  Text(
+                                    '${formatDate(e.createdAt)}'
+                                    '${e.actorName != null ? ' · ${e.actorName}' : ''}',
+                                    style: const TextStyle(
+                                      color: kMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -312,45 +374,126 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   List<Widget> _actions(AppUser user, CollectionRequest r) {
     final widgets = <Widget>[];
-    bool actorIsMe = r.events.any(
-      (e) =>
-          e.status == 'ASSIGNED' &&
-          e.actorName == (user.fullName.isNotEmpty ? user.fullName : user.phone),
-    );
+    // The server reports the assigned collector by id, so nameless accounts
+    // (phone-only registration) still see their own actions.
+    final assignedToMe = r.assignedCollectorId != null
+        ? r.assignedCollectorId == user.id
+        : r.events.any(
+            (e) =>
+                e.status == 'ASSIGNED' &&
+                (e.actorId == user.id ||
+                    e.actorName ==
+                        (user.fullName.isNotEmpty
+                            ? user.fullName
+                            : user.phone)),
+          );
 
     if (user.isConsumer && ['PENDING', 'ASSIGNED'].contains(r.status)) {
-      widgets.add(_actionButton('Cancel request', Icons.cancel_outlined,
-          () => act('cancel'), danger: true));
+      widgets.add(
+        _actionButton(
+          'Cancel request',
+          Icons.cancel_outlined,
+          () => act('cancel'),
+          danger: true,
+        ),
+      );
     }
     if (user.isCollector && r.status == 'PENDING') {
-      widgets.add(_actionButton(
-          'Claim pickup', Icons.add_task, () => act('claim')));
+      widgets.add(
+        _actionButton('Claim pickup', Icons.add_task, () => act('claim')),
+      );
     }
-    if (user.isCollector && r.status == 'ASSIGNED' && actorIsMe) {
-      widgets.add(_actionButton('Mark collected', Icons.inventory_2_outlined,
-          () => act('transition', {'status': 'COLLECTED', 'note': note})));
-      widgets.add(_actionButton('Release', Icons.undo, () => act('release'),
-          outlined: true));
+    if (user.isCollector && r.status == 'ASSIGNED' && assignedToMe) {
+      final needsCode = r.requestType == 'PICKUP' && user.isCollector;
+      if (needsCode) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextField(
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Pickup verification code',
+                helperText: 'The code the consumer shares at hand-over',
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(8),
+              ],
+              maxLength: 8,
+              onChanged: (v) => verificationCode = v.trim(),
+            ),
+          ),
+        );
+      }
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: ElevatedButton(
+            onPressed: busy || (needsCode && verificationCode.length != 8)
+                ? null
+                : () => act('transition', {
+                    'status': 'COLLECTED',
+                    'note': note,
+                    if (needsCode) 'verification_code': verificationCode,
+                  }),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inventory_2_outlined, size: 18),
+                SizedBox(width: 8),
+                Flexible(child: Text('Mark collected')),
+              ],
+            ),
+          ),
+        ),
+      );
+      widgets.add(
+        _actionButton(
+          'Release',
+          Icons.undo,
+          () => act('release'),
+          outlined: true,
+        ),
+      );
     }
-    if (user.isCollector && r.status == 'COLLECTED' && actorIsMe) {
-      widgets.add(_actionButton(
-          'Send to facility', Icons.local_shipping_outlined,
-          () => act('transition', {'status': 'IN_TRANSIT', 'note': note})));
+    if (user.isCollector && r.status == 'COLLECTED' && assignedToMe) {
+      widgets.add(
+        _actionButton(
+          'Send to facility',
+          Icons.local_shipping_outlined,
+          () => act('transition', {'status': 'IN_TRANSIT', 'note': note}),
+        ),
+      );
     }
     if ((user.isRecycler || user.isAdmin) && r.status == 'IN_TRANSIT') {
-      widgets.add(_actionButton('Record receipt', Icons.assignment_turned_in,
+      widgets.add(
+        _actionButton(
+          'Record receipt',
+          Icons.assignment_turned_in,
           () => act('receive', {
-                'items_received': r.itemCount,
-                'method': 'RECYCLING',
-                'notes': note,
-              })));
+            'items_received': r.itemCount,
+            'method': 'RECYCLING',
+            'notes': note,
+          }),
+        ),
+      );
     }
     if ((user.isRecycler || user.isAdmin) && r.status == 'RECEIVED') {
-      widgets.add(_actionButton(
-          'Verify disposal & credit reward', Icons.verified_outlined,
-          () => act('process', {'method': 'RECYCLING', 'notes': note})));
-      widgets.add(_actionButton('Reject consignment', Icons.block,
-          () => act('reject', {'reason': note}), danger: true));
+      widgets.add(
+        _actionButton(
+          'Verify disposal & credit reward',
+          Icons.verified_outlined,
+          () => act('process', {'method': 'RECYCLING', 'notes': note}),
+        ),
+      );
+      widgets.add(
+        _actionButton(
+          'Reject consignment',
+          Icons.block,
+          () => act('reject', {'reason': note}),
+          danger: true,
+        ),
+      );
     }
 
     if (widgets.isNotEmpty && (user.isCollector || user.isRecycler)) {
@@ -360,18 +503,23 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           padding: const EdgeInsets.only(bottom: 8),
           child: TextField(
             decoration: const InputDecoration(
-                labelText: 'Note / reason (optional)'),
+              labelText: 'Note / reason (optional)',
+            ),
             onChanged: (v) => note = v,
           ),
         ),
       );
     }
     if (widgets.isEmpty) {
-      widgets.add(const Padding(
-        padding: EdgeInsets.all(8),
-        child: Text('No actions available for your role.',
-            style: TextStyle(color: kMuted)),
-      ));
+      widgets.add(
+        const Padding(
+          padding: EdgeInsets.all(8),
+          child: Text(
+            'No actions available for your role.',
+            style: TextStyle(color: kMuted),
+          ),
+        ),
+      );
     }
     return widgets;
   }
@@ -396,7 +544,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFC8452F)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFC8452F),
+          ),
           onPressed: onPressedSafe,
           child: child,
         ),

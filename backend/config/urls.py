@@ -1,12 +1,27 @@
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.db import connection
 from django.http import JsonResponse
 from django.urls import include, path
 
 
 def health(_request):
-    return JsonResponse({"status": "ok"})
+    """Liveness probe that also proves the database is reachable.
+
+    A 200 means the API and the database are both answering, so clients
+    (mobile offline queue, web, Render health checks) only go "online"
+    when requests can actually be served.
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    except Exception:
+        return JsonResponse(
+            {"status": "error", "database": "unreachable"}, status=503
+        )
+    return JsonResponse({"status": "ok", "database": "up"})
 
 
 urlpatterns = [

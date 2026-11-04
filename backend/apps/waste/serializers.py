@@ -25,6 +25,7 @@ class ItemTypeSerializer(serializers.ModelSerializer):
             "category",
             "category_name",
             "name",
+            "points_per_item",
             "reward_ugx",
             "carbon_factor_kg",
             "hazardous",
@@ -73,6 +74,7 @@ class ItemSerializer(serializers.ModelSerializer):
         source="item_type.category.name", read_only=True
     )
     reward_ugx = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    points = serializers.IntegerField(read_only=True)
     carbon_kg = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     hazardous = serializers.BooleanField(read_only=True)
     consumer_name = serializers.CharField(
@@ -91,6 +93,7 @@ class ItemSerializer(serializers.ModelSerializer):
             "notes",
             "photo",
             "reward_ugx",
+            "points",
             "carbon_kg",
             "hazardous",
             "consumer_name",
@@ -100,13 +103,22 @@ class ItemSerializer(serializers.ModelSerializer):
 
 
 class RequestEventSerializer(serializers.ModelSerializer):
-    actor_name = serializers.CharField(
-        source="actor.full_name", read_only=True, default=None
-    )
+    # actor_id lets clients check "did I do this?" without guessing on names,
+    # which are often blank for accounts registered with only a phone number.
+    actor_id = serializers.SerializerMethodField()
+    actor_name = serializers.SerializerMethodField()
 
     class Meta:
         model = RequestEvent
-        fields = ["id", "status", "note", "actor_name", "created_at"]
+        fields = ["id", "status", "note", "actor_id", "actor_name", "created_at"]
+
+    def get_actor_id(self, obj):
+        return obj.actor_id
+
+    def get_actor_name(self, obj):
+        if obj.actor_id is None:
+            return None
+        return obj.actor.full_name or obj.actor.phone
 
 
 class CertificateSerializer(serializers.ModelSerializer):
@@ -142,9 +154,8 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
     certificate = CertificateSerializer(read_only=True)
     processing = ProcessingRecordSerializer(read_only=True)
     consumer_detail = UserSerializer(source="consumer", read_only=True)
-    collector_name = serializers.CharField(
-        source="assigned_collector.full_name", read_only=True, default=None
-    )
+    collector_name = serializers.SerializerMethodField()
+    assigned_collector = serializers.SerializerMethodField()
     dropoff_point_detail = DropOffPointSerializer(
         source="dropoff_point", read_only=True, default=None
     )
@@ -152,6 +163,7 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
     carbon_kg = serializers.SerializerMethodField()
     hazardous_count = serializers.SerializerMethodField()
+    pickup_confirmed = serializers.SerializerMethodField()
 
     class Meta:
         model = CollectionRequest
@@ -174,8 +186,12 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
             "preferred_date",
             "consumer_note",
             "reward_credited",
+            "points_earned",
+            "pickup_confirmed",
+            "pickup_confirmed_at",
             "consumer_detail",
             "collector_name",
+            "assigned_collector",
             "events",
             "certificate",
             "processing",
@@ -186,12 +202,22 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
             "reference",
             "status",
             "reward_credited",
+            "points_earned",
+            "pickup_confirmed_at",
             "created_at",
             "updated_at",
         ]
 
     def get_item_count(self, obj):
         return sum(item.quantity for item in obj.items.all())
+
+    def get_assigned_collector(self, obj):
+        return obj.assigned_collector_id
+
+    def get_collector_name(self, obj):
+        if obj.assigned_collector_id is None:
+            return None
+        return obj.assigned_collector.full_name or obj.assigned_collector.phone
 
     def get_carbon_kg(self, obj):
         if obj.carbon_kg:
@@ -202,3 +228,6 @@ class CollectionRequestSerializer(serializers.ModelSerializer):
         return sum(
             item.quantity for item in obj.items.all() if item.hazardous
         )
+
+    def get_pickup_confirmed(self, obj):
+        return obj.pickup_confirmed_at is not None

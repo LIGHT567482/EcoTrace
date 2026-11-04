@@ -17,6 +17,7 @@ import RequestDetailPage from "./pages/RequestDetailPage";
 import WalletPage from "./pages/consumer/WalletPage";
 import DropOffsPage from "./pages/DropOffsPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import MessagesPage from "./pages/MessagesPage";
 import CollectorTasks from "./pages/collector/CollectorTasks";
 import CollectorAvailable from "./pages/collector/CollectorAvailable";
 import RecyclerIncoming from "./pages/recycler/RecyclerIncoming";
@@ -27,6 +28,7 @@ import UsersPage from "./pages/admin/UsersPage";
 import RedemptionsPage from "./pages/admin/RedemptionsPage";
 import CategoriesPage from "./pages/admin/CategoriesPage";
 import AuditTrailPage from "./pages/admin/AuditTrailPage";
+import RewardPolicyPage from "./pages/admin/RewardPolicyPage";
 
 function Home() {
   const { user, loading } = useAuth();
@@ -91,6 +93,14 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/messages",
+        element: (
+          <Protected>
+            <MessagesPage />
+          </Protected>
+        ),
+      },
+      {
         path: "/tasks",
         element: (
           <Protected roles={["COLLECTOR"]}>
@@ -135,6 +145,14 @@ const router = createBrowserRouter([
         element: (
           <Protected roles={["ADMIN"]} loginPath="/admin/login">
             <RedemptionsPage />
+          </Protected>
+        ),
+      },
+      {
+        path: "/reward-settings",
+        element: (
+          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+            <RewardPolicyPage />
           </Protected>
         ),
       },

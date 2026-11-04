@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatUGX } from "../../api";
+import { api } from "../../api";
 
 export default function ItemsPage() {
   const [categories, setCategories] = useState([]);
@@ -77,7 +77,7 @@ export default function ItemsPage() {
     }
   }
 
-  const totalReward = items.reduce((s, i) => s + Number(i.reward_ugx || 0), 0);
+  const totalReward = items.reduce((s, i) => s + Number(i.points || 0), 0);
 
   return (
     <div>
@@ -124,7 +124,7 @@ export default function ItemsPage() {
               >
                 {(selectedCategory?.types || []).map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} - {formatUGX(t.reward_ugx)}
+                    {t.name} - {Number(t.points_per_item).toLocaleString()} base points
                   </option>
                 ))}
               </select>
@@ -181,7 +181,7 @@ export default function ItemsPage() {
             <div className="stat">{items.length}</div>
             <div className="sub">item rows</div>
           </div>
-          <p className="sub mt">Potential reward: {formatUGX(totalReward)}</p>
+          <p className="sub mt">Potential points at drop-off: {Math.round(totalReward).toLocaleString()} pts</p>
           <div className="grid mt" style={{ gap: "0.5rem" }}>
             {items.map((it) => (
               <div className="item-row" key={it.id}>
@@ -193,7 +193,7 @@ export default function ItemsPage() {
                   </small>
                 </div>
                 <div className="right">
-                  <small>{formatUGX(it.reward_ugx)}</small>
+                  <small>{Number(it.points).toLocaleString()} base pts</small>
                   <br />
                   <button className="btn ghost small" onClick={() => remove(it.id)}>
                     Remove

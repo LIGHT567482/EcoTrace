@@ -1,11 +1,15 @@
+import re
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from apps.core.models import Notification
 from apps.rewards.models import Wallet
 from apps.waste.models import (
     Certificate,
     CollectionRequest,
+    DropOffPoint,
     Item,
     ItemType,
     Category,
@@ -31,6 +35,7 @@ class EcoTraceFlowTests(TestCase):
         self.item_type = ItemType.objects.create(
             category=self.category,
             name="Smartphone",
+            points_per_item=3000,
             reward_ugx=3000,
             carbon_factor_kg=21.0,
         )
@@ -74,6 +79,13 @@ class EcoTraceFlowTests(TestCase):
         self.assertEqual(resp.status_code, 201, resp.content)
         req_id = resp.data["id"]
         self.assertEqual(resp.data["status"], "PENDING")
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.collector,
+                title__startswith="New pickup request:",
+                request_id=req_id,
+            ).exists()
+        )
         # Proposal FR4: carbon-offset estimate is shown as soon as items are logged.
         self.assertIn("carbon_kg", resp.data)
         self.assertEqual(float(resp.data["carbon_kg"]), 42.0)
@@ -85,19 +97,34 @@ class EcoTraceFlowTests(TestCase):
         resp = self.client.post(f"/api/requests/{req_id}/claim/")
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertEqual(resp.data["status"], "ASSIGNED")
+        self.login(self.consumer)
+        notifications = self.client.get("/api/auth/notifications/")
+        code_notice = next(
+            item
+            for item in notifications.data["results"]
+            if item["title"].startswith("Pickup verification code:")
+        )
+        verification_code = re.search(r"\d{8}", code_notice["body"]).group()
+        self.login(self.collector)
         resp = self.client.post(
             f"/api/requests/{req_id}/transition/",
             {"status": "COLLECTED"},
             format="json",
         )
+        self.assertEqual(resp.status_code, 400)
+        resp = self.client.post(
+            f"/api/requests/{req_id}/transition/",
+            {"status": "COLLECTED", "verification_code": verification_code},
+            format="json",
+        )
         self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(resp.data["pickup_confirmed"])
         resp = self.client.post(
             f"/api/requests/{req_id}/transition/",
             {"status": "IN_TRANSIT"},
             format="json",
         )
         self.assertEqual(resp.status_code, 200, resp.content)
-
         self.login(self.recycler)
         resp = self.client.post(
             f"/api/requests/{req_id}/receive/",
@@ -130,7 +157,8 @@ class EcoTraceFlowTests(TestCase):
         )
 
         wallet = Wallet.objects.get(user=self.consumer)
-        self.assertEqual(wallet.balance, 6000)
+        self.assertEqual(wallet.balance, 0)
+        self.assertEqual(wallet.points_balance, 3000)
 
         req = CollectionRequest.objects.get(pk=req_id)
         self.assertTrue(Certificate.objects.filter(request=req).exists())
@@ -144,7 +172,7 @@ class EcoTraceFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
         wallet.refresh_from_db()
-        self.assertEqual(wallet.balance, 6000)
+        self.assertEqual(wallet.points_balance, 3000)
 
         # Reports must count the request and its carbon exactly once,
         # even though the request has multiple items (join de-duplication).
@@ -315,3 +343,100 @@ class EcoTraceFlowTests(TestCase):
         self.login(self.admin)
         resp = self.client.get("/api/users/")
         self.assertEqual(resp.status_code, 200)
+
+    def test_points_redeem_enforces_floor_and_rejection_refunds_points(self):
+        wallet, _ = Wallet.objects.get_or_create(user=self.consumer)
+        wallet.credit_points(1500, "test points")
+        self.login(self.consumer)
+        response = self.client.post(
+            "/api/wallet/redeem/",
+            {"points": 999, "destination": "+256700111001"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            "/api/wallet/redeem/",
+            {
+                "points": 1000,
+                "destination": "+256700111001",
+                "method": "AIRTIME",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.data["amount"], "1000.00")
+        self.assertEqual(response.data["points_redeemed"], 1000)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.points_balance, 500)
+
+        self.login(self.admin)
+        response = self.client.post(f"/api/redemptions/{response.data['id']}/reject/")
+        self.assertEqual(response.status_code, 200)
+        wallet.refresh_from_db()
+        self.assertEqual(wallet.points_balance, 1500)
+
+    def test_dropoff_processing_awards_full_policy_points(self):
+        item = Item.objects.create(
+            consumer=self.consumer, item_type=self.item_type, quantity=1
+        )
+        collection = CollectionRequest.objects.create(
+            consumer=self.consumer,
+            request_type=CollectionRequest.Type.DROPOFF,
+            status=CollectionRequest.Status.RECEIVED,
+        )
+        collection.items.set([item])
+        self.login(self.recycler)
+        response = self.client.post(
+            f"/api/requests/{collection.id}/process/",
+            {"method": "RECYCLING"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["points_earned"], 3000)
+        wallet = Wallet.objects.get(user=self.consumer)
+        self.assertEqual(wallet.points_balance, 3000)
+
+    def test_admin_can_update_reward_policy(self):
+        self.login(self.admin)
+        response = self.client.patch(
+            "/api/wallet/policy/",
+            {
+                "minimum_redemption_points": 2500,
+                "ugx_per_point": "2.00",
+                "pickup_points_percent": 25,
+                "dropoff_points_percent": 100,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["minimum_redemption_points"], 2500)
+        response = self.client.patch(
+            "/api/wallet/policy/",
+            {"pickup_points_percent": 100, "dropoff_points_percent": 100},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.login(self.consumer)
+        response = self.client.patch(
+            "/api/wallet/policy/", {"minimum_redemption_points": 1}, format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_collector_can_alert_local_recyclers_of_full_dropoff(self):
+        point = DropOffPoint.objects.create(
+            name="Full bay", address="Kansanga", town="Kansanga"
+        )
+        self.login(self.collector)
+        response = self.client.post(
+            f"/api/dropoff-points/{point.id}/capacity-alert/",
+            {"details": "Bay is full"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["notified"], 1)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.recycler,
+                title="Full drop-off point: collection needed",
+            ).exists()
+        )

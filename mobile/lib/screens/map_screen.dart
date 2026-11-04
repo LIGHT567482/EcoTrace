@@ -97,7 +97,8 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> loadPoints() async {
     try {
       final api = context.read<Session>().api;
-      final data = await api.request('/dropoff-points/?town=Kansanga');
+      final data =
+          await api.request('/dropoff-points/?town=Kansanga&page_size=100');
       final list = (data['results'] ?? data) as List<dynamic>;
       final parsed = list
           .map((e) => DropOffPoint.fromJson(e as Map<String, dynamic>))

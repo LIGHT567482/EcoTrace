@@ -66,6 +66,24 @@ class Notification(models.Model):
         return f"{self.user_id}: {self.title}"
 
 
+class StakeholderMessage(models.Model):
+    sender = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="sent_stakeholder_messages"
+    )
+    recipient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="received_stakeholder_messages"
+    )
+    body = models.TextField(max_length=2000)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"Message from {self.sender_id} to {self.recipient_id}"
+
+
 class AuditLog(models.Model):
     actor = models.ForeignKey(
         User,

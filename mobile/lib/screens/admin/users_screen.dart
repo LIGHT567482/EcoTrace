@@ -51,7 +51,7 @@ class _UsersScreenState extends State<UsersScreen> {
   Future<void> load() async {
     try {
       final api = context.read<Session>().api;
-      final data = await api.request('/users/');
+      final data = await api.request('/users/?page_size=100');
       final list = (data['results'] ?? data) as List<dynamic>;
       setState(() => users = list
           .map((e) => _AdminUser.fromJson(e as Map<String, dynamic>))

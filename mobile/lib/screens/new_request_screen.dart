@@ -22,18 +22,24 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   DropOffPoint? dropoff;
   String error = '';
   bool busy = false;
+  int pickupPointsPercent = 50;
+  int dropoffPointsPercent = 100;
 
   @override
   void initState() {
     super.initState();
+    // Prefill from the profile so the pickup address is never blank.
+    final saved = context.read<Session>().user?.address ?? '';
+    if (saved.isNotEmpty) address.text = saved;
     load();
   }
 
   Future<void> load() async {
     final api = context.read<Session>().api;
     try {
-      final itemData = await api.request('/items/');
-      final dropData = await api.request('/dropoff-points/');
+      final itemData = await api.request('/items/?page_size=100');
+      final dropData = await api.request('/dropoff-points/?page_size=100');
+      final policy = await api.request('/wallet/policy/');
       final its = (itemData['results'] ?? itemData) as List<dynamic>;
       final dps = (dropData['results'] ?? dropData) as List<dynamic>;
       setState(() {
@@ -44,17 +50,29 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
             .map((e) => DropOffPoint.fromJson(e as Map<String, dynamic>))
             .toList();
         dropoff ??= dropoffs.isNotEmpty ? dropoffs.first : null;
+        pickupPointsPercent = policy['pickup_points_percent'] as int? ?? 50;
+        dropoffPointsPercent = policy['dropoff_points_percent'] as int? ?? 100;
       });
     } catch (e) {
       setState(() => error = e.toString());
     }
   }
 
-  double get reward => items
+  int get reward => items
       .where((i) => selected.contains(i.id))
-      .fold(0, (s, i) => s + (double.tryParse(i.rewardUgx) ?? 0));
+      .fold(0, (s, i) => s + i.points);
+
+  int get pointsEstimate =>
+      (reward * (pickupMode ? pickupPointsPercent : dropoffPointsPercent) / 100)
+          .round();
 
   Future<void> submit() async {
+    if (pickupMode && address.text.trim().isEmpty) {
+      setState(
+        () => error = 'Enter the pickup address so the collector can find you.',
+      );
+      return;
+    }
     setState(() {
       busy = true;
       error = '';
@@ -71,7 +89,9 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
       await api.request('/requests/', method: 'POST', body: body);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request submitted - track it under Requests.')),
+          const SnackBar(
+            content: Text('Request submitted - track it under Requests.'),
+          ),
         );
         Navigator.pop(context);
       }
@@ -90,30 +110,37 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (error.isNotEmpty) ErrorBanner(message: error),
-          const Text('1 · Choose items',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          const Text(
+            '1 · Choose items',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
           const SizedBox(height: 8),
-          ...items.map((it) => CheckboxListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                value: selected.contains(it.id),
-                title: Text('${it.typeName} × ${it.quantity}'),
-                subtitle: Text(
-                    '${it.categoryName} · ${formatUGX(it.rewardUgx)}'),
-                onChanged: (v) => setState(() {
-                  if (v == true) {
-                    selected.add(it.id);
-                  } else {
-                    selected.remove(it.id);
-                  }
-                }),
-              )),
+          ...items.map(
+            (it) => CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: selected.contains(it.id),
+              title: Text('${it.typeName} × ${it.quantity}'),
+              subtitle: Text(
+                '${it.categoryName} · ${formatPoints(it.points)} base pts',
+              ),
+              onChanged: (v) => setState(() {
+                if (v == true) {
+                  selected.add(it.id);
+                } else {
+                  selected.remove(it.id);
+                }
+              }),
+            ),
+          ),
           if (items.isEmpty)
             const EmptyView(message: 'No items logged yet - add some first.'),
           const SizedBox(height: 12),
-          const Text('2 · Collection details',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          const Text(
+            '2 · Collection details',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+          ),
           const SizedBox(height: 8),
           SegmentedButton<bool>(
             segments: const [
@@ -134,8 +161,12 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
               initialValue: dropoff,
               decoration: const InputDecoration(labelText: 'Drop-off point'),
               items: dropoffs
-                  .map((d) => DropdownMenuItem(
-                      value: d, child: Text('${d.name} - ${d.address}')))
+                  .map(
+                    (d) => DropdownMenuItem(
+                      value: d,
+                      child: Text('${d.name} - ${d.address}'),
+                    ),
+                  )
                   .toList(),
               onChanged: (d) => setState(() => dropoff = d),
             ),
@@ -143,7 +174,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
           TextField(
             controller: note,
             decoration: const InputDecoration(
-                labelText: 'Note for the collector (optional)'),
+              labelText: 'Note for the collector (optional)',
+            ),
           ),
           const SizedBox(height: 16),
           Card(
@@ -153,8 +185,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${selected.length} item row(s) · reward ${formatUGX(reward)} '
-                    'after verified disposal',
+                    '${selected.length} item row(s) · about ${formatPoints(pointsEstimate)} points '
+                    'after verified processing',
                     style: const TextStyle(fontSize: 13, color: kMuted),
                   ),
                   const SizedBox(height: 10),

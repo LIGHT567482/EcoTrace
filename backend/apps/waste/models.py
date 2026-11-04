@@ -23,6 +23,10 @@ class Category(models.Model):
 class ItemType(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="types")
     name = models.CharField(max_length=100)
+    points_per_item = models.PositiveIntegerField(
+        default=1000,
+        help_text="Base consumer points per item before collection method multiplier",
+    )
     reward_ugx = models.DecimalField(
         max_digits=10, decimal_places=2, default=1000.00,
         help_text="Wallet credit per item in UGX",
@@ -92,6 +96,10 @@ class Item(models.Model):
         return self.item_type.carbon_factor_kg * self.quantity
 
     @property
+    def points(self):
+        return self.item_type.points_per_item * self.quantity
+
+    @property
     def hazardous(self):
         return self.item_type.hazardous or self.condition == self.Condition.DAMAGED
 
@@ -143,6 +151,9 @@ class CollectionRequest(models.Model):
     preferred_date = models.DateField(null=True, blank=True)
     consumer_note = models.CharField(max_length=255, blank=True)
     reward_credited = models.BooleanField(default=False)
+    points_earned = models.PositiveIntegerField(default=0)
+    pickup_verification_hash = models.CharField(max_length=128, blank=True)
+    pickup_confirmed_at = models.DateTimeField(null=True, blank=True)
     carbon_kg = models.DecimalField(
         max_digits=10, decimal_places=2, default=0,
         help_text="Estimated Carbon Dioxide avoided, snapshotted when disposal is verified",

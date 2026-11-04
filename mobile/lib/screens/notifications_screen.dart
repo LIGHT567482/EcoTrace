@@ -108,6 +108,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> clearAll() async {
+    final api = context.read<Session>().api;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -125,14 +126,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() {
       error = '';
       busy = true;
     });
     try {
-      final api = context.read<Session>().api;
       await api.request('/auth/notifications/clear/', method: 'DELETE');
       if (!mounted) return;
       setState(() {

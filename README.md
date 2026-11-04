@@ -75,7 +75,9 @@ Recycler processes batch  ──► wallet credit + certificate        [PROCESSE
 Consumer may cancel while pending                                [CANCELLED]
 ```
 
-Every transition writes a `RequestEvent` (status, note, actor, timestamp) and notifies the consumer. Rewards and the carbon snapshot are written exactly once, at `PROCESSED`.
+Every transition writes a `RequestEvent` (status, note, actor, timestamp) and notifies the consumer. Points and the carbon snapshot are written exactly once, at `PROCESSED`. A pickup claim notifies active collectors in the consumer's town and sends an eight-digit one-time verification code to the consumer's notifications. Collectors must enter that code to confirm handoff, which leaves timestamped proof in the request timeline.
+
+Base points per item, UGX per point, the minimum redemption balance, and pickup/drop-off rates are configurable by administrators. Pickup rates must remain lower than drop-off rates. Consumers can redeem points for mobile money or airtime after reaching the configured minimum. Stakeholder messages are restricted to adjacent roles: consumer ↔ collector, collector ↔ recycler, and recycler ↔ administrator; each message also creates a notification. Collectors can alert active recyclers in their town when a drop-off point is full.
 
 ### 5.3 Functional requirements → implementation
 
@@ -162,23 +164,23 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-Points at the API via `VITE_API_URL` (default `http://localhost:8000/api`). `npm run build` produces `dist/`; `npm run lint` runs Oxlint.
+Points at the API via `VITE_API_URL` (default `https://ecotrace-api-sr9f.onrender.com/api`). `npm run build` produces `dist/`; `npm run lint` runs Oxlint.
 
 ### 8.3 Mobile app (Flutter)
 
 ```bash
 cd mobile
 flutter pub get
-flutter run          # Android emulator defaults to http://10.0.2.2:8000/api
+flutter run --dart-define=API_URL=http://10.0.2.2:8000/api   # local backend on an emulator
 ```
 
-Override the API base URL with `--dart-define=API_URL=...`.
+Without the define the app talks to the deployed API (`https://ecotrace-api-sr9f.onrender.com/api`), which is also the default for the web app. The app is offline-first: it caches every GET and queues writes until the API answers again.
 
 ### 8.4 Verifying a full cycle locally
 
 1. Sign in as the **consumer**, log items (watch reward + Carbon Dioxide estimates), request a pickup.
-2. Sign in as the **collector** - the pickup appears under Available (same town); claim → COLLECTED → IN_TRANSIT.
-3. Sign in as the **recycler** - receive the consignment, then process it: the consumer’s wallet is credited and a certificate is issued.
+2. Sign in as the **collector** - the pickup appears under Available (same town); claim, then enter the one-time code the consumer's notification shows to mark it COLLECTED → IN_TRANSIT.
+3. Sign in as the **recycler** - receive the consignment, then process it: the consumer’s wallet is credited with points and a certificate is issued.
 4. Sign in as the **admin** - reports show the processed request, Carbon Dioxide avoided, rewards paid and town volumes; approve any pending redemption.
 
 ## 9. API reference (summary)
@@ -186,7 +188,8 @@ Override the API base URL with `--dart-define=API_URL=...`.
 | Method & path | Purpose |
 | --- | --- |
 | `POST /api/auth/admin/token/` | Rate-limited administrator-only JWT login |
-| `POST /api/auth/register/` · `POST /api/auth/token/` · `GET /api/auth/me/` | Registration, JWT login, profile |
+| `POST /api/auth/register/` · `POST /api/auth/token/` · `POST /api/auth/token/refresh/` · `GET /api/auth/me/` | Registration, JWT login, token refresh, profile |
+| `GET /api/health/` · `GET /health/` | Liveness probe that also verifies the database (`200` up, `503` unreachable) |
 | `GET /api/audit-logs/` | Admin-only, searchable audit of API activity and sign-in attempts |
 | `GET /api/auth/notifications/` · `POST …/{id}/read/` · `POST …/read-all/` | List notifications, mark one or all as read |
 | `DELETE /api/auth/notifications/{id}/` · `DELETE …/clear/` | Delete one notification or clear all |
@@ -197,9 +200,9 @@ Override the API base URL with `--dart-define=API_URL=...`.
 | `POST /api/requests/` | Create collection request |
 | `GET /api/requests/list/` | Role-scoped lists (`scope=available&town=…`, `status`, `from`, `to`, `q`, paging) |
 | `GET /api/requests/{id}/` | Full detail: items, events, certificate, processing |
-| `POST /api/requests/{id}/claim/` · `release/` · `transition/` · `cancel/` | Collector & consumer workflow |
+| `POST /api/requests/{id}/claim/` · `release/` · `transition/` · `cancel/` | Collector & consumer workflow; marking a pickup COLLECTED requires the consumer's `verification_code` |
 | `POST /api/requests/{id}/receive/` · `process/` · `reject/` | Recycler intake & disposal |
-| `GET /api/wallet/` · `POST /api/wallet/redeem/` · `GET /api/wallet/stats/` | Wallet & redemptions |
+| `GET /api/wallet/` · `POST /api/wallet/redeem/` · `GET /api/wallet/stats/` | Wallet (`points_balance`, `ugx_balance`, point history, reward policy), redemptions, admin payout totals |
 | `GET /api/redemptions/` + approve/reject actions | Admin payout control |
 | `GET /api/reports/summary/` | Impact reports (town & date filters) |
 

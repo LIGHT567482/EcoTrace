@@ -29,6 +29,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> submit() async {
+    // Mirror the server-side Django password validators so the user sees the
+    // problem before the round trip.
+    if (registerMode) {
+      final pw = password.text;
+      if (phone.text.trim().isEmpty) {
+        setState(() => error = 'Enter your phone number.');
+        return;
+      }
+      if (pw.length < 8) {
+        setState(() => error = 'Password must be at least 8 characters.');
+        return;
+      }
+      if (int.tryParse(pw) != null) {
+        setState(() => error = 'Password cannot be only numbers.');
+        return;
+      }
+    }
     setState(() {
       busy = true;
       error = '';

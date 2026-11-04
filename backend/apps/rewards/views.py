@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -9,10 +12,18 @@ from rest_framework.views import APIView
 from apps.core.models import User
 from apps.core.permissions import IsAdmin
 
-from .models import Redemption, WalletTransaction, get_or_create_wallet
+from .models import (
+    PointTransaction,
+    Redemption,
+    WalletTransaction,
+    get_or_create_wallet,
+    get_reward_policy,
+)
 from .serializers import (
     CreateRedemptionSerializer,
+    PointTransactionSerializer,
     RedemptionSerializer,
+    RewardPolicySerializer,
     WalletSerializer,
     WalletTransactionSerializer,
 )
@@ -28,6 +39,10 @@ class WalletView(APIView):
             {
                 "wallet": WalletSerializer(wallet).data,
                 "transactions": WalletTransactionSerializer(txs, many=True).data,
+                "point_transactions": PointTransactionSerializer(
+                    wallet.point_transactions.all()[:50], many=True
+                ).data,
+                "policy": RewardPolicySerializer(get_reward_policy()).data,
             }
         )
 
@@ -35,23 +50,57 @@ class WalletView(APIView):
 class RedeemView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request):
         serializer = CreateRedemptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         wallet = get_or_create_wallet(request.user)
-        amount = serializer.validated_data["amount"]
-        if wallet.balance < amount:
-            return Response(
-                {"detail": "Insufficient wallet balance."},
-                status=status.HTTP_400_BAD_REQUEST,
+        policy = get_reward_policy()
+        points = serializer.validated_data.get("points", 0)
+        if points:
+            if points < policy.minimum_redemption_points:
+                return Response(
+                    {
+                        "detail": (
+                            f"At least {policy.minimum_redemption_points} points are "
+                            "required to redeem."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if wallet.points_balance < points:
+                return Response(
+                    {"detail": "Insufficient points balance."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            amount = (Decimal(points) * policy.ugx_per_point).quantize(Decimal("0.01"))
+            try:
+                wallet.debit_points(points, "Points redemption requested")
+            except ValueError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            amount = serializer.validated_data["amount"]
+            minimum_amount = (
+                Decimal(policy.minimum_redemption_points) * policy.ugx_per_point
             )
-        try:
-            wallet.debit(amount, "Redemption requested")
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            if amount < minimum_amount:
+                return Response(
+                    {"detail": f"At least {minimum_amount} UGX is required to redeem."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if wallet.balance < amount:
+                return Response(
+                    {"detail": "Insufficient wallet balance."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                wallet.debit(amount, "Redemption requested")
+            except ValueError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         redemption = Redemption.objects.create(
             user=request.user,
             amount=amount,
+            points_redeemed=points,
             method=serializer.validated_data["method"],
             destination=serializer.validated_data["destination"],
         )
@@ -116,10 +165,16 @@ class RedemptionViewSet(viewsets.ModelViewSet):
             update_fields=["status", "note", "handled_by", "handled_at"]
         )
         wallet = get_or_create_wallet(redemption.user)
-        wallet.credit(
-            redemption.amount,
-            f"Refund for rejected redemption #{redemption.id}",
-        )
+        if redemption.points_redeemed:
+            wallet.credit_points(
+                redemption.points_redeemed,
+                f"Refund for rejected redemption #{redemption.id}",
+            )
+        else:
+            wallet.credit(
+                redemption.amount,
+                f"Refund for rejected redemption #{redemption.id}",
+            )
         return Response(RedemptionSerializer(redemption).data)
 
 
@@ -137,11 +192,46 @@ class WalletStatsView(APIView):
             .aggregate(total=Sum("amount"))["total"]
             or 0
         )
+        # Verified disposals are paid in points, so the headline figures must
+        # count both ledgers or every reward shows up as zero.
+        policy = get_reward_policy()
+        points_credited = (
+            PointTransaction.objects.filter(kind=PointTransaction.Kind.CREDIT)
+            .aggregate(total=Sum("points"))["total"]
+            or 0
+        )
+        points_redeemed = (
+            PointTransaction.objects.filter(kind=PointTransaction.Kind.DEBIT)
+            .aggregate(total=Sum("points"))["total"]
+            or 0
+        )
+        rate = policy.ugx_per_point
+        total_credited = Decimal(credits) + Decimal(points_credited) * rate
+        total_paid_out = Decimal(debits) + Decimal(points_redeemed) * rate
         pending = Redemption.objects.filter(status=Redemption.Status.PENDING).count()
         return Response(
             {
-                "total_credited": str(credits),
-                "total_paid_out": str(debits),
+                "total_credited": str(total_credited.quantize(Decimal("0.01"))),
+                "total_paid_out": str(total_paid_out.quantize(Decimal("0.01"))),
+                "points_credited": points_credited,
+                "points_redeemed": points_redeemed,
+                "ugx_per_point": str(rate),
                 "pending_redemptions": pending,
             }
         )
+
+
+class RewardPolicyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(RewardPolicySerializer(get_reward_policy()).data)
+
+    def patch(self, request):
+        if request.user.role != User.Role.ADMIN and not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        policy = get_reward_policy()
+        serializer = RewardPolicySerializer(policy, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

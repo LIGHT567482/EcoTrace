@@ -11,6 +11,7 @@ import 'admin/users_screen.dart';
 import 'dropoffs_screen.dart';
 import 'items_screen.dart';
 import 'map_screen.dart';
+import 'messages_screen.dart';
 import 'notifications_screen.dart';
 import 'requests_list_screen.dart';
 import 'wallet_screen.dart';
@@ -85,8 +86,10 @@ class _HomeShellState extends State<HomeShell> {
               padding: const EdgeInsets.only(right: 4),
               child: Center(
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: offline.online
                         ? const Color(0xFFE0F0FF)
@@ -117,9 +120,11 @@ class _HomeShellState extends State<HomeShell> {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(s.offline.online
-                        ? 'Synced with server'
-                        : 'Still offline — changes stay queued'),
+                    content: Text(
+                      s.offline.online
+                          ? 'Synced with server'
+                          : 'Still offline — changes stay queued',
+                    ),
                     duration: const Duration(seconds: 2),
                   ),
                 );
@@ -133,6 +138,14 @@ class _HomeShellState extends State<HomeShell> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.forum_outlined),
+            tooltip: 'Messages',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MessagesScreen()),
             ),
           ),
           IconButton(
@@ -179,11 +192,13 @@ class _HomeShellState extends State<HomeShell> {
         content: const Text('You will need to sign in again to continue.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sign out')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
         ],
       ),
     );
@@ -194,42 +209,80 @@ class _HomeShellState extends State<HomeShell> {
     switch (role) {
       case 'COLLECTOR':
         return [
-          _Tab('Home', const Icon(Icons.home_outlined),
-              const RequestsListScreen(scope: 'mine')),
-          _Tab('Available', const Icon(Icons.search),
-              const RequestsListScreen(scope: 'available')),
-          _Tab('Activity', const Icon(Icons.timeline),
-              const RequestsListScreen(scope: 'all')),
+          _Tab(
+            'Home',
+            const Icon(Icons.home_outlined),
+            const RequestsListScreen(scope: 'mine'),
+          ),
+          _Tab(
+            'Available',
+            const Icon(Icons.search),
+            const RequestsListScreen(scope: 'available'),
+          ),
+          _Tab(
+            'Activity',
+            const Icon(Icons.timeline),
+            const RequestsListScreen(scope: 'all'),
+          ),
+          _Tab(
+            'Drop-offs',
+            const Icon(Icons.place_outlined),
+            const DropOffsScreen(),
+          ),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
       case 'RECYCLER':
         return [
-          _Tab('Home', const Icon(Icons.home_outlined),
-              const RequestsListScreen(scope: 'incoming')),
-          _Tab('All tracked', const Icon(Icons.recycling_outlined),
-              const RequestsListScreen(scope: 'all')),
+          _Tab(
+            'Home',
+            const Icon(Icons.home_outlined),
+            const RequestsListScreen(scope: 'incoming'),
+          ),
+          _Tab(
+            'All tracked',
+            const Icon(Icons.recycling_outlined),
+            const RequestsListScreen(scope: 'all'),
+          ),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
       case 'ADMIN':
         return [
           _Tab('Home', const Icon(Icons.home_outlined), const ReportsScreen()),
-          _Tab('Requests', const Icon(Icons.list_alt),
-              const RequestsListScreen(scope: 'all')),
+          _Tab(
+            'Requests',
+            const Icon(Icons.list_alt),
+            const RequestsListScreen(scope: 'all'),
+          ),
           _Tab('Users', const Icon(Icons.people_outline), const UsersScreen()),
-          _Tab('Payouts', const Icon(Icons.payments_outlined),
-              const RedemptionsScreen()),
+          _Tab(
+            'Payouts',
+            const Icon(Icons.payments_outlined),
+            const RedemptionsScreen(),
+          ),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
       default:
         return [
-          _Tab('Home', const Icon(Icons.home_outlined),
-              const RequestsListScreen(scope: 'mine')),
-          _Tab('Log items', const Icon(Icons.add_box_outlined),
-              const ItemsScreen()),
-          _Tab('Wallet', const Icon(Icons.account_balance_wallet_outlined),
-              const WalletScreen()),
-          _Tab('Drop-offs', const Icon(Icons.place_outlined),
-              const DropOffsScreen()),
+          _Tab(
+            'Home',
+            const Icon(Icons.home_outlined),
+            const RequestsListScreen(scope: 'mine'),
+          ),
+          _Tab(
+            'Log items',
+            const Icon(Icons.add_box_outlined),
+            const ItemsScreen(),
+          ),
+          _Tab(
+            'Wallet',
+            const Icon(Icons.account_balance_wallet_outlined),
+            const WalletScreen(),
+          ),
+          _Tab(
+            'Drop-offs',
+            const Icon(Icons.place_outlined),
+            const DropOffsScreen(),
+          ),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
     }

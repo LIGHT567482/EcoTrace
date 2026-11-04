@@ -1,3 +1,8 @@
+import secrets
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.contrib.auth.hashers import check_password, make_password
+from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -8,7 +13,7 @@ from rest_framework.views import APIView
 
 from apps.core.models import Notification, User
 from apps.core.permissions import IsAdmin, IsAdminOrRecycler, IsCollector
-from apps.rewards.models import get_or_create_wallet
+from apps.rewards.models import get_or_create_wallet, get_reward_policy
 
 from .models import (
     Category,
@@ -127,6 +132,8 @@ class DropOffPointViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
+        if self.action == "capacity_alert":
+            return [IsCollector()]
         if self.action in ("list", "retrieve"):
             return [AllowAny()]
         return [IsAdmin()]
@@ -140,6 +147,29 @@ class DropOffPointViewSet(viewsets.ModelViewSet):
         if user.is_anonymous or getattr(user, "role", None) not in STAFF_ROLES:
             return qs.filter(is_active=True)
         return qs
+
+    @action(detail=True, methods=["post"], url_path="capacity-alert")
+    def capacity_alert(self, request, pk=None):
+        point = self.get_object()
+        if point.town.casefold() != request.user.town.casefold():
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        recyclers = User.objects.filter(
+            role=User.Role.RECYCLER,
+            is_active=True,
+            town__iexact=point.town,
+        )
+        if not recyclers.exists():
+            return Response(
+                {"detail": "No active recyclers are registered in this town."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        details = str(request.data.get("details", "")).strip()[:500]
+        body = f"{point.name} in {point.town} is full and needs collection."
+        if details:
+            body = f"{body} Collector note: {details}"
+        for recycler in recyclers:
+            notify(recycler, "Full drop-off point: collection needed", body)
+        return Response({"notified": recyclers.count()})
 
 
 class ItemViewSet(viewsets.ModelViewSet):
@@ -223,6 +253,19 @@ class RequestCreateView(APIView):
             "Collection request created",
             request.user,
         )
+        if collection.request_type == CollectionRequest.Type.PICKUP:
+            collectors = User.objects.filter(
+                role=User.Role.COLLECTOR,
+                is_active=True,
+                town__iexact=request.user.town,
+            )
+            for collector in collectors:
+                notify(
+                    collector,
+                    f"New pickup request: {collection.reference}",
+                    f"A pickup request is available in {request.user.town}. Open the request to review it.",
+                    collection,
+                )
         return Response(
             CollectionRequestSerializer(collection).data,
             status=status.HTTP_201_CREATED,
@@ -388,14 +431,34 @@ class ClaimRequestView(RequestActionMixin, APIView):
                 {"detail": "Request is no longer available."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        verification_code = None
+        if obj.request_type == CollectionRequest.Type.PICKUP:
+            verification_code = f"{secrets.randbelow(100_000_000):08d}"
+            obj.pickup_verification_hash = make_password(verification_code)
+        if obj.consumer.town.casefold() != request.user.town.casefold():
+            return Response(
+                {"detail": "This pickup is outside your assigned town."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         obj.assigned_collector = request.user
-        obj.save(update_fields=["assigned_collector", "updated_at"])
-        return self.apply_status(
+        update_fields = ["assigned_collector", "updated_at"]
+        if verification_code:
+            update_fields.append("pickup_verification_hash")
+        obj.save(update_fields=update_fields)
+        response = self.apply_status(
             obj,
             CollectionRequest.Status.ASSIGNED,
             f"Claimed by {request.user.full_name or request.user.phone}",
             request.user,
         )
+        if response.status_code == status.HTTP_200_OK and verification_code:
+            notify(
+                obj.consumer,
+                f"Pickup verification code: {obj.reference}",
+                f"Share this one-time code with your collector at pickup: {verification_code}",
+                obj,
+            )
+        return response
 
 
 class ReleaseRequestView(RequestActionMixin, APIView):
@@ -410,7 +473,8 @@ class ReleaseRequestView(RequestActionMixin, APIView):
         )
         if result.status_code == 200:
             obj.assigned_collector = None
-            obj.save(update_fields=["assigned_collector"])
+            obj.pickup_verification_hash = ""
+            obj.save(update_fields=["assigned_collector", "pickup_verification_hash"])
             result = Response(CollectionRequestSerializer(obj).data)
         return result
 
@@ -444,6 +508,29 @@ class TransitionRequestView(RequestActionMixin, APIView):
                     {"detail": "Mark the items as collected first."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+        if (
+            new_status == CollectionRequest.Status.COLLECTED
+            and obj.request_type == CollectionRequest.Type.PICKUP
+            and user.role == User.Role.COLLECTOR
+        ):
+            verification_code = str(request.data.get("verification_code", ""))
+            if not obj.pickup_verification_hash or not check_password(
+                verification_code, obj.pickup_verification_hash
+            ):
+                return Response(
+                    {"verification_code": "Enter the current code shared by the consumer."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            obj.pickup_confirmed_at = timezone.now()
+            obj.pickup_verification_hash = ""
+            obj.save(
+                update_fields=[
+                    "pickup_confirmed_at",
+                    "pickup_verification_hash",
+                    "updated_at",
+                ]
+            )
+            note = "Pickup confirmed by the consumer. " + str(note).strip()
         return self.apply_status(obj, new_status, note, user)
 
 
@@ -508,9 +595,11 @@ class ReceiveRequestView(APIView):
 class ProcessRequestView(APIView):
     permission_classes = [IsAdminOrRecycler]
 
+    @transaction.atomic
     def post(self, request, pk):
         obj = (
-            CollectionRequest.objects.select_related("consumer")
+            CollectionRequest.objects.select_for_update()
+            .select_related("consumer")
             .prefetch_related("items__item_type")
             .filter(pk=pk)
             .first()
@@ -539,22 +628,43 @@ class ProcessRequestView(APIView):
                 notes=request.data.get("notes", ""),
             )
 
-        reward_total = sum((item.reward_ugx for item in obj.items.all()), 0)
+        reward_total = sum((item.points for item in obj.items.all()), 0)
+        policy = get_reward_policy()
+        points_percent = (
+            policy.pickup_points_percent
+            if obj.request_type == CollectionRequest.Type.PICKUP
+            else policy.dropoff_points_percent
+        )
+        points_total = int(
+            (Decimal(reward_total) * Decimal(points_percent) / Decimal(100)).quantize(
+                Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
         carbon_total = sum((item.carbon_kg for item in obj.items.all()), 0)
         labels = ", ".join(
             sorted({f"{item.item_type.name} x{item.quantity}" for item in obj.items.all()})
         )
         obj.status = CollectionRequest.Status.PROCESSED
         obj.carbon_kg = carbon_total
-        if not obj.reward_credited and reward_total > 0:
+        if not obj.reward_credited:
             wallet = get_or_create_wallet(obj.consumer)
-            wallet.credit(
-                reward_total,
-                f"Reward for disposal {obj.reference}",
-                request=obj,
-            )
+            if points_total > 0:
+                wallet.credit_points(
+                    points_total,
+                    f"Reward for disposal {obj.reference}",
+                    request=obj,
+                )
             obj.reward_credited = True
-        obj.save(update_fields=["status", "reward_credited", "carbon_kg", "updated_at"])
+            obj.points_earned = points_total
+        obj.save(
+            update_fields=[
+                "status",
+                "reward_credited",
+                "points_earned",
+                "carbon_kg",
+                "updated_at",
+            ]
+        )
         Certificate.objects.get_or_create(
             request=obj,
             defaults={
@@ -566,14 +676,14 @@ class ProcessRequestView(APIView):
         add_event(
             obj,
             CollectionRequest.Status.PROCESSED,
-            f"Disposal verified; reward UGX {reward_total} credited; "
+            f"Disposal verified; {points_total} points credited; "
             f"~{carbon_total} kg Carbon Dioxide equivalent avoided",
             request.user,
         )
         notify(
             obj.consumer,
             f"Disposal verified: {obj.reference}",
-            f"Thank you! UGX {reward_total} was credited to your wallet and a "
+            f"Thank you! {points_total} points were credited to your rewards wallet and a "
             "disposal certificate was issued.",
             obj,
         )
@@ -649,11 +759,26 @@ class StatsView(APIView):
             )["total"]
             or 0
         )
-        from apps.rewards.models import WalletTransaction
+        from apps.rewards.models import (
+            PointTransaction,
+            WalletTransaction,
+            get_reward_policy,
+        )
 
-        rewards_paid = WalletTransaction.objects.filter(
-            kind=WalletTransaction.Kind.CREDIT
-        ).aggregate(total=Sum("amount"))["total"] or 0
+        # Rewards are paid in points since the policy change; report both
+        # ledgers in shillings so the impact figure is never stuck at zero.
+        legacy_credits = (
+            WalletTransaction.objects.filter(kind=WalletTransaction.Kind.CREDIT)
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+        points_credited = (
+            PointTransaction.objects.filter(kind=PointTransaction.Kind.CREDIT)
+            .aggregate(total=Sum("points"))["total"]
+            or 0
+        )
+        rate = get_reward_policy().ugx_per_point
+        rewards_paid = Decimal(legacy_credits) + Decimal(points_credited) * rate
 
         # Aggregate request counts and carbon without joining items
         # (a joined Sum/Count would duplicate request rows per item).
@@ -680,7 +805,8 @@ class StatsView(APIView):
                 "processed_requests": processed_requests,
                 "recycled_items": recycled_items,
                 "carbon_saved_kg": carbon_saved_kg,
-                "reward_credits_ugx": str(rewards_paid),
+                "reward_credits_ugx": str(rewards_paid.quantize(Decimal("0.01"))),
+                "points_credited": points_credited,
                 "users_by_role": dict(
                     User.objects.values_list("role").annotate(n=Count("id")).order_by()
                 ),
