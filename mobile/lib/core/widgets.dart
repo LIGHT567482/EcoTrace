@@ -170,3 +170,65 @@ class ErrorBanner extends StatelessWidget {
     );
   }
 }
+
+/// Slim status strip: offline / pending-sync indicator.
+class OfflineBanner extends StatelessWidget {
+  final bool online;
+  final int pending;
+  final bool syncing;
+  const OfflineBanner({
+    super.key,
+    required this.online,
+    required this.pending,
+    required this.syncing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (online && pending == 0 && !syncing) return const SizedBox.shrink();
+    final String text;
+    final Color bg;
+    final Color fg;
+    if (!online) {
+      text = pending > 0
+          ? 'Offline · $pending change(s) waiting to sync'
+          : 'Offline · showing saved data';
+      bg = const Color(0xFFFFF4E0);
+      fg = const Color(0xFF7A5600);
+    } else if (syncing) {
+      text = 'Syncing $pending change(s)…';
+      bg = const Color(0xFFE0F0FF);
+      fg = const Color(0xFF14497F);
+    } else {
+      text = '$pending change(s) will sync shortly';
+      bg = const Color(0xFFFFF4E0);
+      fg = const Color(0xFF7A5600);
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: bg,
+      child: Row(
+        children: [
+          if (!online)
+            Icon(Icons.cloud_off, size: 14, color: fg)
+          else if (syncing)
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+            )
+          else
+            Icon(Icons.cloud_sync, size: 14, color: fg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

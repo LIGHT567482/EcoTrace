@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'offline.dart';
 
 class AppUser {
   final int id;
@@ -50,25 +52,56 @@ class Session extends ChangeNotifier {
   final Api api;
   AppUser? user;
   bool ready = false;
+  bool offlineMode = false;
+
+  StreamSubscription<void>? _syncSub;
 
   Session(this.api);
+
+  OfflineStore get offline => api.offline;
 
   Future<void> init() async {
     await api.init();
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('user');
     if (raw != null && api.hasToken) {
+      // Always restore cached session first so the app works offline.
       user = AppUser.fromJson(jsonDecode(raw) as Map<String, dynamic>);
       try {
         final me = await api.request('/auth/me/');
         user = AppUser.fromJson(me as Map<String, dynamic>);
         await prefs.setString('user', jsonEncode(user!.toJson()));
+        offlineMode = false;
+      } on OfflineException {
+        // Stay signed-in with the cached profile while offline.
+        offlineMode = true;
+      } on ApiException catch (e) {
+        if (e.status == 401 || e.status == 403) {
+          user = null; // real auth failure
+        } else {
+          offlineMode = true;
+        }
       } catch (_) {
-        user = null;
+        offlineMode = true;
       }
     }
+
+    // Re-render UI whenever a background sync flush completes so
+    // server-side changes (from web) show up automatically.
+    _syncSub ??= api.onSynced.listen((_) {
+      offlineMode = !offline.online;
+      notifyListeners();
+    });
+    offline.addListener(_onOfflineChanged);
+
     ready = true;
     notifyListeners();
+  }
+
+  void _onOfflineChanged() {
+    final was = offlineMode;
+    offlineMode = !offline.online;
+    if (was != offlineMode) notifyListeners();
   }
 
   Future<void> login(String phone, String password) async {
@@ -78,11 +111,16 @@ class Session extends ChangeNotifier {
       body: {'phone': phone, 'password': password},
       auth: false,
     ) as Map<String, dynamic>;
+    if (data['_offline'] == true) {
+      throw OfflineException('Cannot sign in while offline.');
+    }
     await api.saveTokens(data['access'] as String, data['refresh'] as String);
     user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', jsonEncode(user!.toJson()));
+    offlineMode = false;
     notifyListeners();
+    unawaited(api.syncNow());
   }
 
   Future<void> register({
@@ -104,16 +142,29 @@ class Session extends ChangeNotifier {
       },
       auth: false,
     ) as Map<String, dynamic>;
+    if (data['_offline'] == true) {
+      throw OfflineException('Cannot register while offline.');
+    }
     await api.saveTokens(data['access'] as String, data['refresh'] as String);
     user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user', jsonEncode(user!.toJson()));
+    offlineMode = false;
     notifyListeners();
+    unawaited(api.syncNow());
   }
 
   Future<void> logout() async {
     await api.clear();
     user = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    offline.removeListener(_onOfflineChanged);
+    api.dispose();
+    super.dispose();
   }
 }

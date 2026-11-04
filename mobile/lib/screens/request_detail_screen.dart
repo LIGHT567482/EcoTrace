@@ -28,6 +28,22 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Future<void> load() async {
     try {
       final api = context.read<Session>().api;
+      // Temp (offline-queued) rows live only in the local list cache.
+      if (widget.requestId < 0) {
+        final cached = await api.offline.getCached('/requests/list/');
+        final results = (cached is Map && cached['results'] is List)
+            ? cached['results'] as List
+            : const [];
+        for (final row in results) {
+          if (row is Map<String, dynamic> && row['id'] == widget.requestId) {
+            setState(() =>
+                request = CollectionRequest.fromJson(row));
+            return;
+          }
+        }
+        setState(() => error = 'This request is queued offline.');
+        return;
+      }
       final data = await api.request('/requests/${widget.requestId}/');
       setState(() =>
           request = CollectionRequest.fromJson(data as Map<String, dynamic>));
@@ -43,16 +59,80 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     });
     try {
       final api = context.read<Session>().api;
-      await api.request(
+      final res = await api.request(
         '/requests/${widget.requestId}/$path',
         method: 'POST',
         body: body ?? {},
       );
+      if (res is Map && res['_offline'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved offline — will apply when you reconnect.'),
+            ),
+          );
+        }
+        // Locally reflect the status change in the cached list row.
+        await _patchCachedStatus(path, body);
+      }
       await load();
     } catch (e) {
       setState(() => error = e.toString());
     } finally {
       if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _patchCachedStatus(
+      String path, Map<String, dynamic>? body) async {
+    final api = context.read<Session>().api;
+    final cached = await api.offline.getCached('/requests/list/');
+    if (cached is! Map<String, dynamic>) return;
+    final results = cached['results'];
+    if (results is! List) return;
+    for (final row in results) {
+      if (row is! Map<String, dynamic>) continue;
+      if (row['id'] != widget.requestId) continue;
+      if (path == 'cancel') {
+        row['status'] = 'CANCELLED';
+        row['status_label'] = 'Cancelled';
+      } else if (path == 'transition' && body?['status'] is String) {
+        row['status'] = body!['status'];
+        row['status_label'] = body['status'];
+      } else if (path == 'claim') {
+        row['status'] = 'ASSIGNED';
+        row['status_label'] = 'Assigned';
+      } else if (path == 'receive') {
+        row['status'] = 'RECEIVED';
+        row['status_label'] = 'Received at facility';
+      } else if (path == 'process') {
+        row['status'] = 'PROCESSED';
+        row['status_label'] = 'Processed';
+      } else if (path == 'reject') {
+        row['status'] = 'REJECTED';
+        row['status_label'] = 'Rejected';
+      }
+      // Optimistic event for the timeline.
+      final events = row['events'];
+      if (events is List) {
+        events.insert(0, {
+          'id': -DateTime.now().millisecondsSinceEpoch,
+          'status': row['status'],
+          'note': body?['note'] ?? body?['reason'] ?? '',
+          'created_at': DateTime.now().toIso8601String(),
+          '_pending': true,
+        });
+      }
+    }
+    await api.offline.cacheGet('/requests/list/', cached);
+    // Mirror status onto the in-memory model so the UI refreshes.
+    final results2 = cached['results'];
+    if (results2 is List) {
+      for (final row in results2) {
+        if (row is Map<String, dynamic> && row['id'] == widget.requestId) {
+          request = CollectionRequest.fromJson(row);
+        }
+      }
     }
   }
 

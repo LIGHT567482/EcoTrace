@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/session.dart';
+import '../core/widgets.dart';
 import 'admin/redemptions_screen.dart';
 import 'admin/reports_screen.dart';
 import 'admin/users_screen.dart';
@@ -21,10 +24,36 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
+  Timer? _refreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-pull server state every 45s so web/admin changes appear live.
+    _refreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      final session = context.read<Session>();
+      session.offline; // touch for rebuild via notifyListeners
+      // Trigger a light connectivity check + queued flush.
+      session.api.ping().then((ok) {
+        if (ok && session.offline.pendingCount > 0) {
+          session.api.syncNow();
+        }
+        if (mounted) setState(() {});
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<Session>().user!;
+    final session = context.watch<Session>();
+    final user = session.user!;
+    final offline = session.offline;
     final tabs = _tabsFor(user.role);
     final destinations = tabs
         .map((t) => NavigationDestination(icon: t.icon, label: t.label))
@@ -36,9 +65,9 @@ class _HomeShellState extends State<HomeShell> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Image.asset(
-              'assets/images/bg.png',
-              width: 64,
-              height: 32,
+              'assets/images/logo.png',
+              width: 36,
+              height: 36,
               fit: BoxFit.contain,
             ),
             const SizedBox(width: 10),
@@ -51,10 +80,52 @@ class _HomeShellState extends State<HomeShell> {
           ],
         ),
         actions: [
+          if (offline.pendingCount > 0 || !offline.online)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: offline.online
+                        ? const Color(0xFFE0F0FF)
+                        : const Color(0xFFFFF4E0),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    offline.online
+                        ? '${offline.pendingCount} pending'
+                        : 'Offline',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: offline.online
+                          ? const Color(0xFF14497F)
+                          : const Color(0xFF7A5600),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           IconButton(
-            icon: const Icon(Icons.home_outlined),
-            tooltip: 'Home',
-            onPressed: () => setState(() => index = 0),
+            icon: const Icon(Icons.sync),
+            tooltip: 'Sync now',
+            onPressed: () async {
+              final s = context.read<Session>();
+              await s.api.syncNow();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(s.offline.online
+                        ? 'Synced with server'
+                        : 'Still offline — changes stay queued'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+              if (mounted) setState(() {});
+            },
           ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
@@ -75,7 +146,21 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
-      body: IndexedStack(index: index, children: tabs.map((t) => t.screen).toList()),
+      body: Column(
+        children: [
+          OfflineBanner(
+            online: offline.online,
+            pending: offline.pendingCount,
+            syncing: offline.syncing,
+          ),
+          Expanded(
+            child: IndexedStack(
+              index: index,
+              children: tabs.map((t) => t.screen).toList(),
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,
         selectedIndex: index,
@@ -93,8 +178,12 @@ class _HomeShellState extends State<HomeShell> {
         title: const Text('Sign out?'),
         content: const Text('You will need to sign in again to continue.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Sign out')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sign out')),
         ],
       ),
     );
@@ -124,17 +213,23 @@ class _HomeShellState extends State<HomeShell> {
       case 'ADMIN':
         return [
           _Tab('Home', const Icon(Icons.home_outlined), const ReportsScreen()),
-          _Tab('Requests', const Icon(Icons.list_alt), const RequestsListScreen(scope: 'all')),
+          _Tab('Requests', const Icon(Icons.list_alt),
+              const RequestsListScreen(scope: 'all')),
           _Tab('Users', const Icon(Icons.people_outline), const UsersScreen()),
-          _Tab('Payouts', const Icon(Icons.payments_outlined), const RedemptionsScreen()),
+          _Tab('Payouts', const Icon(Icons.payments_outlined),
+              const RedemptionsScreen()),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
       default:
         return [
-          _Tab('Home', const Icon(Icons.home_outlined), const RequestsListScreen(scope: 'mine')),
-          _Tab('Log items', const Icon(Icons.add_box_outlined), const ItemsScreen()),
-          _Tab('Wallet', const Icon(Icons.account_balance_wallet_outlined), const WalletScreen()),
-          _Tab('Drop-offs', const Icon(Icons.place_outlined), const DropOffsScreen()),
+          _Tab('Home', const Icon(Icons.home_outlined),
+              const RequestsListScreen(scope: 'mine')),
+          _Tab('Log items', const Icon(Icons.add_box_outlined),
+              const ItemsScreen()),
+          _Tab('Wallet', const Icon(Icons.account_balance_wallet_outlined),
+              const WalletScreen()),
+          _Tab('Drop-offs', const Icon(Icons.place_outlined),
+              const DropOffsScreen()),
           _Tab('Map', const Icon(Icons.map_outlined), const MapScreen()),
         ];
     }
