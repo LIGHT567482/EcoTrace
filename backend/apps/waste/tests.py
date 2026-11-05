@@ -62,6 +62,38 @@ class EcoTraceFlowTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200, resp.content)
 
+    def test_pickup_request_accepts_map_location_without_address(self):
+        self.login(self.consumer)
+        item = Item.objects.create(
+            consumer=self.consumer, item_type=self.item_type, quantity=1
+        )
+        partial_location = self.client.post(
+            "/api/requests/",
+            {
+                "request_type": "PICKUP",
+                "item_ids": [item.id],
+                "latitude": 0.3172,
+            },
+            format="json",
+        )
+        self.assertEqual(partial_location.status_code, 400)
+
+        resp = self.client.post(
+            "/api/requests/",
+            {
+                "request_type": "PICKUP",
+                "item_ids": [item.id],
+                "latitude": 0.3172,
+                "longitude": 32.5816,
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 201, resp.content)
+        self.assertEqual(resp.data["pickup_address"], "")
+        self.assertEqual(resp.data["latitude"], 0.3172)
+        self.assertEqual(resp.data["longitude"], 32.5816)
+
     def test_full_disposal_flow_credits_wallet(self):
         self.login(self.consumer)
         item = Item.objects.create(

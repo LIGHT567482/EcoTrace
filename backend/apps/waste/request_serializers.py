@@ -27,9 +27,23 @@ class RequestCreateSerializer(serializers.Serializer):
         return list(items)
 
     def validate(self, attrs):
+        has_latitude = attrs.get("latitude") is not None
+        has_longitude = attrs.get("longitude") is not None
+        if has_latitude != has_longitude:
+            raise serializers.ValidationError(
+                {"latitude": "Provide both latitude and longitude."}
+            )
+
         if attrs["request_type"] == CollectionRequest.Type.PICKUP:
-            if not attrs.get("pickup_address") and not self.context["request"].user.address:
-                raise serializers.ValidationError(
-                    {"pickup_address": "A pickup address is required."}
+                has_address = (
+                    attrs.get("pickup_address") or self.context["request"].user.address
                 )
+                if not has_address and not has_latitude:
+                    raise serializers.ValidationError(
+                        {
+                            "pickup_address": (
+                                "A pickup address or map location is required."
+                            )
+                        }
+                    )
         return attrs

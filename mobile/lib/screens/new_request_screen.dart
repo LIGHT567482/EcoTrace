@@ -111,8 +111,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
       });
 
   Future<void> submit() async {
-    final hasPin = latitude != null && longitude != null;
-    if (pickupMode && address.text.trim().isEmpty && !hasPin) {
+    final hasPickupPin = pickupMode && latitude != null && longitude != null;
+    if (pickupMode && address.text.trim().isEmpty && !hasPickupPin) {
       setState(
         () => error =
             'Enter the pickup address or drop a map pin so the collector '
@@ -133,7 +133,7 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
         'consumer_note': note.text,
       };
       if (!pickupMode && dropoff != null) body['dropoff_point'] = dropoff!.id;
-      if (hasPin) {
+      if (hasPickupPin) {
         body['latitude'] = latitude;
         body['longitude'] = longitude;
       }
