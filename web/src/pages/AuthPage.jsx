@@ -108,12 +108,6 @@ export default function AuthPage() {
         </form>
         <p className="mt" style={{ textAlign: "center" }}>
           <Link to="/">Back to home</Link>
-          {!isRegister && (
-            <>
-              {" · "}
-              <Link to="/admin/login">Administrator sign in</Link>
-            </>
-          )}
         </p>
       </div>
     </div>

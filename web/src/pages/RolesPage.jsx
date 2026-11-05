@@ -46,8 +46,8 @@ export default function RolesPage() {
         <div className="lp-wrap lp-final-in">
           <h2>Pick your part in the chain.</h2>
           <p>
-            Consumers register themselves; collectors, recyclers and
-            administrators are invited by an admin.
+            Consumers register themselves — create an account and start
+            tracking your e-waste.
           </p>
           <div className="lp-cta center">
             <Link className="btn lp-btn-primary" to="/register">

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/location.dart';
 import '../core/models.dart';
 import '../core/session.dart';
 import '../core/widgets.dart';
+import 'location_picker_screen.dart';
 
 class NewRequestScreen extends StatefulWidget {
   const NewRequestScreen({super.key});
@@ -20,6 +22,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   final address = TextEditingController();
   final note = TextEditingController();
   DropOffPoint? dropoff;
+  double? latitude;
+  double? longitude;
   String error = '';
   bool busy = false;
   int pickupPointsPercent = 50;
@@ -66,10 +70,53 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
       (reward * (pickupMode ? pickupPointsPercent : dropoffPointsPercent) / 100)
           .round();
 
-  Future<void> submit() async {
-    if (pickupMode && address.text.trim().isEmpty) {
+  Future<void> useMyLocation() async {
+    setState(() => error = '');
+    final loc = await tryCurrentLocation();
+    if (!mounted) return;
+    if (loc == null) {
       setState(
-        () => error = 'Enter the pickup address so the collector can find you.',
+        () => error =
+            'Could not get your location. Check permissions, or pick the '
+            'spot on the map instead.',
+      );
+      return;
+    }
+    setState(() {
+      latitude = loc.latitude;
+      longitude = loc.longitude;
+    });
+  }
+
+  Future<void> pickOnMap() async {
+    final result = await Navigator.push<SimpleLocation>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLatitude: latitude,
+          initialLongitude: longitude,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      latitude = result.latitude;
+      longitude = result.longitude;
+    });
+  }
+
+  void clearPin() => setState(() {
+        latitude = null;
+        longitude = null;
+      });
+
+  Future<void> submit() async {
+    final hasPin = latitude != null && longitude != null;
+    if (pickupMode && address.text.trim().isEmpty && !hasPin) {
+      setState(
+        () => error =
+            'Enter the pickup address or drop a map pin so the collector '
+            'can find you.',
       );
       return;
     }
@@ -86,6 +133,10 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
         'consumer_note': note.text,
       };
       if (!pickupMode && dropoff != null) body['dropoff_point'] = dropoff!.id;
+      if (hasPin) {
+        body['latitude'] = latitude;
+        body['longitude'] = longitude;
+      }
       await api.request('/requests/', method: 'POST', body: body);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,12 +202,45 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
             onSelectionChanged: (s) => setState(() => pickupMode = s.first),
           ),
           const SizedBox(height: 12),
-          if (pickupMode)
+          if (pickupMode) ...[
             TextField(
               controller: address,
               decoration: const InputDecoration(labelText: 'Pickup address'),
-            )
-          else
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: useMyLocation,
+                    icon: const Icon(Icons.my_location, size: 16),
+                    label: const Text('My location'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: pickOnMap,
+                    icon: const Icon(Icons.map_outlined, size: 16),
+                    label: const Text('Pick on map'),
+                  ),
+                ),
+              ],
+            ),
+            if (latitude != null && longitude != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: InputChip(
+                  avatar: const Icon(Icons.location_pin, size: 16),
+                  label: Text(
+                    'Pinned ${latitude!.toStringAsFixed(5)}, '
+                    '${longitude!.toStringAsFixed(5)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  onDeleted: clearPin,
+                ),
+              ),
+          ] else
             DropdownButtonFormField<DropOffPoint>(
               initialValue: dropoff,
               decoration: const InputDecoration(labelText: 'Drop-off point'),

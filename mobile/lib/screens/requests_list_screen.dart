@@ -8,7 +8,16 @@ import 'request_detail_screen.dart';
 
 class RequestsListScreen extends StatefulWidget {
   final String scope;
-  const RequestsListScreen({super.key, this.scope = 'mine'});
+
+  /// Shown instead of the plain empty-state text when there is nothing to
+  /// list — used to give the home tabs useful default content.
+  final Widget? placeholder;
+
+  const RequestsListScreen({
+    super.key,
+    this.scope = 'mine',
+    this.placeholder,
+  });
 
   @override
   State<RequestsListScreen> createState() => _RequestsListScreenState();
@@ -68,7 +77,8 @@ class _RequestsListScreenState extends State<RequestsListScreen> {
               child: Center(child: CircularProgressIndicator()),
             ),
           if (!loading && requests.isEmpty && error.isEmpty)
-            const EmptyView(message: 'No requests to show.'),
+            widget.placeholder ??
+                const EmptyView(message: 'No requests to show.'),
           ...requests.map((r) => _RequestCard(
                 request: r,
                 onTap: () async {

@@ -13,8 +13,8 @@ const NAV = {
     ["/wallet", "Wallet"],
     ["/dropoffs", "Drop-off points"],
     ["/map", "Map"],
-    ["/messages", "Messages"],
     ["/notifications", "Notifications"],
+    ["/messages", "Messages"],
   ],
   COLLECTOR: [
     ["/", "Home"],
@@ -23,16 +23,16 @@ const NAV = {
     ["/dropoffs", "Drop-off points"],
     ["/requests", "Requests"],
     ["/map", "Map"],
-    ["/messages", "Messages"],
     ["/notifications", "Notifications"],
+    ["/messages", "Messages"],
   ],
   RECYCLER: [
     ["/", "Home"],
     ["/incoming", "Incoming shipments"],
     ["/requests", "All tracked"],
     ["/map", "Map"],
-    ["/messages", "Messages"],
     ["/notifications", "Notifications"],
+    ["/messages", "Messages"],
   ],
   ADMIN: [
     ["/", "Home"],
@@ -45,8 +45,8 @@ const NAV = {
     ["/audit", "Audit trail"],
     ["/dropoffs", "Drop-off points"],
     ["/map", "Map"],
-    ["/messages", "Messages"],
     ["/notifications", "Notifications"],
+    ["/messages", "Messages"],
   ],
 };
 

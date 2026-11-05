@@ -64,7 +64,7 @@ export default function MessagesPage() {
     <div>
       <div className="page-head">
         <div>
-          <h1>Stakeholder messages</h1>
+          <h1>Messages</h1>
           <p>Message the next role in your EcoTrace workflow.</p>
         </div>
         <label className="field">

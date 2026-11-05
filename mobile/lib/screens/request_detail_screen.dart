@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/models.dart';
 import '../core/session.dart';
 import '../core/widgets.dart';
+import 'directions_screen.dart';
 
 class RequestDetailScreen extends StatefulWidget {
   final int requestId;
@@ -374,6 +375,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
 
   List<Widget> _actions(AppUser user, CollectionRequest r) {
     final widgets = <Widget>[];
+    // Server actions that submit a note/reason (navigation does not).
+    var hasNoteAction = false;
     // The server reports the assigned collector by id, so nameless accounts
     // (phone-only registration) still see their own actions.
     final assignedToMe = r.assignedCollectorId != null
@@ -388,7 +391,43 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                             : user.phone)),
           );
 
+    // In-app walking directions: pickup pin for pickups, the certified
+    // facility coordinates for drop-offs. Never leaves the app.
+    final dest = r.requestType == 'DROPOFF'
+        ? (r.dropoffLatitude != null && r.dropoffLongitude != null
+            ? (
+                r.dropoffLatitude!,
+                r.dropoffLongitude!,
+                r.dropoffName ?? 'drop-off point',
+              )
+            : null)
+        : (r.latitude != null && r.longitude != null
+            ? (r.latitude!, r.longitude!, 'pickup')
+            : null);
+    if (user.isCollector &&
+        dest != null &&
+        ['PENDING', 'ASSIGNED', 'COLLECTED', 'IN_TRANSIT'].contains(r.status)) {
+      widgets.add(
+        _actionButton(
+          'Walking directions',
+          Icons.directions_walk,
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DirectionsScreen(
+                destinationLatitude: dest.$1,
+                destinationLongitude: dest.$2,
+                destinationLabel: dest.$3,
+              ),
+            ),
+          ),
+          outlined: true,
+        ),
+      );
+    }
+
     if (user.isConsumer && ['PENDING', 'ASSIGNED'].contains(r.status)) {
+      hasNoteAction = true;
       widgets.add(
         _actionButton(
           'Cancel request',
@@ -399,11 +438,13 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       );
     }
     if (user.isCollector && r.status == 'PENDING') {
+      hasNoteAction = true;
       widgets.add(
         _actionButton('Claim pickup', Icons.add_task, () => act('claim')),
       );
     }
     if (user.isCollector && r.status == 'ASSIGNED' && assignedToMe) {
+      hasNoteAction = true;
       final needsCode = r.requestType == 'PICKUP' && user.isCollector;
       if (needsCode) {
         widgets.add(
@@ -457,6 +498,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       );
     }
     if (user.isCollector && r.status == 'COLLECTED' && assignedToMe) {
+      hasNoteAction = true;
       widgets.add(
         _actionButton(
           'Send to facility',
@@ -466,6 +508,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       );
     }
     if ((user.isRecycler || user.isAdmin) && r.status == 'IN_TRANSIT') {
+      hasNoteAction = true;
       widgets.add(
         _actionButton(
           'Record receipt',
@@ -479,6 +522,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       );
     }
     if ((user.isRecycler || user.isAdmin) && r.status == 'RECEIVED') {
+      hasNoteAction = true;
       widgets.add(
         _actionButton(
           'Verify disposal & credit reward',
@@ -496,7 +540,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
       );
     }
 
-    if (widgets.isNotEmpty && (user.isCollector || user.isRecycler)) {
+    if (hasNoteAction && (user.isCollector || user.isRecycler)) {
       widgets.insert(
         0,
         Padding(

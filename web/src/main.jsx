@@ -9,7 +9,6 @@ import RolesPage from "./pages/RolesPage";
 import ImpactPage from "./pages/ImpactPage";
 import MapPage from "./pages/MapPage";
 import AuthPage from "./pages/AuthPage";
-import AdminLoginPage from "./pages/AdminLoginPage";
 import ItemsPage from "./pages/consumer/ItemsPage";
 import NewRequestPage from "./pages/consumer/NewRequestPage";
 import RequestsPage from "./pages/RequestsPage";
@@ -55,7 +54,6 @@ const router = createBrowserRouter([
       { path: "/impact", element: <ImpactPage /> },
       { path: "/login", element: <AuthPage /> },
       { path: "/register", element: <AuthPage /> },
-      { path: "/admin/login", element: <AdminLoginPage /> },
       {
         path: "/items",
         element: (
@@ -127,7 +125,7 @@ const router = createBrowserRouter([
       {
         path: "/admin",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <AdminDashboard />
           </Protected>
         ),
@@ -135,7 +133,7 @@ const router = createBrowserRouter([
       {
         path: "/users",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <UsersPage />
           </Protected>
         ),
@@ -143,7 +141,7 @@ const router = createBrowserRouter([
       {
         path: "/redemptions",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <RedemptionsPage />
           </Protected>
         ),
@@ -151,7 +149,7 @@ const router = createBrowserRouter([
       {
         path: "/reward-settings",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <RewardPolicyPage />
           </Protected>
         ),
@@ -159,7 +157,7 @@ const router = createBrowserRouter([
       {
         path: "/categories",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <CategoriesPage />
           </Protected>
         ),
@@ -167,7 +165,7 @@ const router = createBrowserRouter([
       {
         path: "/audit",
         element: (
-          <Protected roles={["ADMIN"]} loginPath="/admin/login">
+          <Protected roles={["ADMIN"]}>
             <AuditTrailPage />
           </Protected>
         ),

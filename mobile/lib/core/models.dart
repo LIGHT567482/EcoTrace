@@ -177,7 +177,11 @@ class CollectionRequest {
   final List<EwasteItem> items;
   final int itemCount;
   final String pickupAddress;
+  final double? latitude;
+  final double? longitude;
   final String? dropoffName;
+  final double? dropoffLatitude;
+  final double? dropoffLongitude;
   final bool rewardCredited;
   final String consumerName;
   final String? collectorName;
@@ -201,7 +205,11 @@ class CollectionRequest {
     required this.items,
     required this.itemCount,
     required this.pickupAddress,
+    this.latitude,
+    this.longitude,
     this.dropoffName,
+    this.dropoffLatitude,
+    this.dropoffLongitude,
     required this.rewardCredited,
     required this.consumerName,
     this.collectorName,
@@ -231,9 +239,19 @@ class CollectionRequest {
           .toList(),
       itemCount: json['item_count'] as int? ?? 0,
       pickupAddress: json['pickup_address'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
       dropoffName:
           (json['dropoff_point_detail'] as Map<String, dynamic>?)?['name']
               as String?,
+      dropoffLatitude:
+          ((json['dropoff_point_detail'] as Map<String, dynamic>?)
+                  ?['latitude'] as num?)
+              ?.toDouble(),
+      dropoffLongitude:
+          ((json['dropoff_point_detail'] as Map<String, dynamic>?)
+                  ?['longitude'] as num?)
+              ?.toDouble(),
       rewardCredited: json['reward_credited'] as bool? ?? false,
       consumerName: consumer == null
           ? '${json['consumer_name'] ?? ''}'

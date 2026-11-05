@@ -1053,7 +1053,7 @@ span.lp-logo {
   display: block;
   width: min(520px, 100%);
   height: auto;
-  margin: 0 0 1.75rem;
+  margin: 0 auto 1.75rem;
 }
 
 /* Hero impact summary */

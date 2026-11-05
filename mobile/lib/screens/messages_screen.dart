@@ -113,7 +113,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stakeholder messages'),
+        title: const Text('Messages'),
         actions: [
           IconButton(
             tooltip: 'Refresh messages',

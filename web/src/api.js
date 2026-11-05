@@ -87,21 +87,6 @@ export async function login(phone, password) {
   return data.user;
 }
 
-export async function adminLogin(phone, password) {
-  const data = await api("/auth/admin/token/", {
-    method: "POST",
-    body: { phone, password },
-    auth: false,
-  });
-  if (data.user?.role !== "ADMIN") {
-    clearTokens();
-    throw new Error("This account is not authorized for administrator access.");
-  }
-  setTokens(data);
-  cacheUser(data.user);
-  return data.user;
-}
-
 export async function register(payload) {
   const data = await api("/auth/register/", {
     method: "POST",

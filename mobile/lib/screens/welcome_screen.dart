@@ -28,7 +28,7 @@ class WelcomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: Alignment.center,
                     child: Image.asset(
                       'assets/images/bg.png',
                       width: 260,
@@ -98,7 +98,7 @@ class WelcomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Collectors, recyclers and administrators are invited by an admin.',
+                          'Create an account to start tracking your e-waste.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: kMuted, fontSize: 11.5),
                         ),

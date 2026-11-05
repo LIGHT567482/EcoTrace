@@ -28,7 +28,7 @@ String mapEmbedHtml(String embedUrl) => '''
 <body><iframe src="$embedUrl" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></body>
 </html>''';
 
-bool _mapFrameNavigationAllowed(String raw) {
+bool mapFrameNavigationAllowed(String raw) {
   final uri = Uri.tryParse(raw);
   if (uri == null) return false;
   if (uri.scheme == 'about' && uri.host.isEmpty) return true;
@@ -84,7 +84,7 @@ class _MapScreenState extends State<MapScreen> {
           if (mounted) setState(() => pageLoading = false);
         },
         onNavigationRequest: (request) {
-          return _mapFrameNavigationAllowed(request.url)
+          return mapFrameNavigationAllowed(request.url)
               ? NavigationDecision.navigate
               : NavigationDecision.prevent;
         },

@@ -289,10 +289,22 @@ class Api {
     }
 
     if (res.statusCode == 204) return null;
-    final dynamic data = res.body.isEmpty ? null : jsonDecode(res.body);
+    final dynamic data = _tryDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) return data;
-    // status 0 marker for callers that want to treat as offline
-    throw ApiException(res.statusCode, _messageOf(data));
+    // Non-JSON bodies (proxy/CDN HTML error pages) must surface as an HTTP
+    // error, never as a raw FormatException in the UI.
+    throw ApiException(res.statusCode, _messageOf(data, res));
+  }
+
+  /// JSON-decodes [raw], returning null when the body is empty or is not
+  /// JSON (e.g. an HTML error page from a proxy).
+  static dynamic _tryDecode(String raw) {
+    if (raw.isEmpty) return null;
+    try {
+      return jsonDecode(raw);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<http.Response> _send(
@@ -320,7 +332,7 @@ class Api {
     return sendReq().timeout(const Duration(seconds: 20));
   }
 
-  String _messageOf(dynamic data) {
+  String _messageOf(dynamic data, http.Response res) {
     if (data is Map<String, dynamic>) {
       if (data['detail'] != null) return data['detail'].toString();
       final parts = <String>[];
@@ -329,7 +341,10 @@ class Api {
       });
       return parts.join(' · ');
     }
-    return data?.toString() ?? 'Request failed';
+    if (data != null) return data.toString();
+    if (res.body.isEmpty) return 'Request failed (HTTP ${res.statusCode})';
+    // Body was not JSON — most often an HTML error page from a proxy.
+    return 'Server error (HTTP ${res.statusCode}). Please try again.';
   }
 }
 

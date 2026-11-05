@@ -9,9 +9,11 @@ import 'admin/redemptions_screen.dart';
 import 'admin/reports_screen.dart';
 import 'admin/users_screen.dart';
 import 'dropoffs_screen.dart';
+import 'home_placeholder.dart';
 import 'items_screen.dart';
 import 'map_screen.dart';
 import 'messages_screen.dart';
+import 'new_request_screen.dart';
 import 'notifications_screen.dart';
 import 'requests_list_screen.dart';
 import 'wallet_screen.dart';
@@ -212,7 +214,28 @@ class _HomeShellState extends State<HomeShell> {
           _Tab(
             'Home',
             const Icon(Icons.home_outlined),
-            const RequestsListScreen(scope: 'mine'),
+            RequestsListScreen(
+              scope: 'mine',
+              placeholder: HomePlaceholder(
+                title: 'Welcome to EcoTrace',
+                subtitle:
+                    'Claim nearby pickup jobs, confirm the hand-off with the '
+                    'consumer’s one-time code, and deliver them to a '
+                    'certified facility.',
+                actions: [
+                  PlaceholderAction(
+                    label: 'Browse available',
+                    icon: Icons.search,
+                    onTap: () => setState(() => index = 1),
+                  ),
+                  PlaceholderAction(
+                    label: 'Map',
+                    icon: Icons.map_outlined,
+                    onTap: () => setState(() => index = 4),
+                  ),
+                ],
+              ),
+            ),
           ),
           _Tab(
             'Available',
@@ -236,7 +259,28 @@ class _HomeShellState extends State<HomeShell> {
           _Tab(
             'Home',
             const Icon(Icons.home_outlined),
-            const RequestsListScreen(scope: 'incoming'),
+            RequestsListScreen(
+              scope: 'incoming',
+              placeholder: HomePlaceholder(
+                title: 'No incoming shipments',
+                subtitle:
+                    'Consignments on their way to you appear here. Record '
+                    'receipt, verify the contents and process them to release '
+                    'consumer rewards.',
+                actions: [
+                  PlaceholderAction(
+                    label: 'All tracked',
+                    icon: Icons.recycling_outlined,
+                    onTap: () => setState(() => index = 1),
+                  ),
+                  PlaceholderAction(
+                    label: 'Map',
+                    icon: Icons.map_outlined,
+                    onTap: () => setState(() => index = 2),
+                  ),
+                ],
+              ),
+            ),
           ),
           _Tab(
             'All tracked',
@@ -266,7 +310,38 @@ class _HomeShellState extends State<HomeShell> {
           _Tab(
             'Home',
             const Icon(Icons.home_outlined),
-            const RequestsListScreen(scope: 'mine'),
+            RequestsListScreen(
+              scope: 'mine',
+              placeholder: HomePlaceholder(
+                title: 'Welcome to EcoTrace',
+                subtitle:
+                    'Your old gadgets aren’t garbage — log what you '
+                    'have, request a pickup or drop it off, and earn rewards '
+                    'once it’s recycled.',
+                actions: [
+                  PlaceholderAction(
+                    label: 'Log items',
+                    icon: Icons.add_box_outlined,
+                    onTap: () => setState(() => index = 1),
+                  ),
+                  PlaceholderAction(
+                    label: 'Request pickup',
+                    icon: Icons.local_shipping_outlined,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const NewRequestScreen(),
+                      ),
+                    ),
+                  ),
+                  PlaceholderAction(
+                    label: 'Map',
+                    icon: Icons.map_outlined,
+                    onTap: () => setState(() => index = 4),
+                  ),
+                ],
+              ),
+            ),
           ),
           _Tab(
             'Log items',

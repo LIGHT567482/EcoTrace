@@ -156,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Collectors, recyclers and administrators are created by the admin.',
+                  'One account works everywhere in EcoTrace.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: kMuted, fontSize: 12),
                 ),
