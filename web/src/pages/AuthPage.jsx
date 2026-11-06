@@ -4,7 +4,9 @@ import { login, register } from "../api";
 import { useAuth } from "../auth";
 
 export default function AuthPage() {
-  const isRegister = useLocation().pathname === "/register";
+  const location = useLocation();
+  const isRegister = location.pathname === "/register";
+  const from = location.state?.from;
   const navigate = useNavigate();
   const { setUser } = useAuth();
   const [error, setError] = useState("");
@@ -28,7 +30,10 @@ export default function AuthPage() {
         ? await register(form)
         : await login(form.phone, form.password);
       setUser(user);
-      navigate("/");
+      navigate(
+        from ? { pathname: from.pathname, search: from.search } : "/",
+        { replace: true }
+      );
     } catch (err) {
       if (err.data && typeof err.data === "object" && !err.data.detail) {
         const msgs = Object.entries(err.data)
@@ -55,14 +60,14 @@ export default function AuthPage() {
           <button
             type="button"
             className={!isRegister ? "active" : ""}
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/login", { state: location.state })}
           >
             Sign in
           </button>
           <button
             type="button"
             className={isRegister ? "active" : ""}
-            onClick={() => navigate("/register")}
+            onClick={() => navigate("/register", { state: location.state })}
           >
             Register
           </button>

@@ -14,6 +14,13 @@ class Api {
     defaultValue: 'https://ecotrace-api-sr9f.onrender.com/api',
   );
 
+  /// Render's free tier cold-starts can take ~45s. Any timeout below that
+  /// makes a waking server look like a dead network ("you are offline").
+  static const Duration requestTimeout = Duration(seconds: 60);
+  static const Duration refreshTimeout = Duration(seconds: 60);
+  static const Duration pingTimeout = Duration(seconds: 8);
+  static const Duration pingWarmupTimeout = Duration(seconds: 60);
+
   String? _access;
   String? _refresh;
   SharedPreferences? _prefs;
@@ -67,7 +74,7 @@ class Api {
         Uri.parse('$baseUrl/auth/token/refresh/'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh': _refresh}),
-      ).timeout(const Duration(seconds: 12));
+      ).timeout(refreshTimeout);
       if (res.statusCode != 200) return false;
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       await saveTokens(data['access'] as String, data['refresh'] as String);
@@ -79,32 +86,58 @@ class Api {
 
   /// True when the device can reach the API right now.
   /// Probes the server health endpoint (root or under /api).
+  ///
+  /// Fast probes first (fail fast when the radio is genuinely down), then one
+  /// patient probe: a cold Render instance can take ~45-60s to wake, and
+  /// failing fast there is what used to paint the app "offline" while online.
+  bool _pinging = false;
+
   Future<bool> ping() async {
-    final origins = <String>{
-      baseUrl.replaceFirst(RegExp(r'/api/?$'), ''),
-      // Fallback if baseUrl has no /api suffix
-      baseUrl,
-    };
-    for (final origin in origins) {
-      for (final path in ['/health/', '/api/health/']) {
-        try {
-          final res = await http
-              .get(
-                Uri.parse('$origin$path'),
-                headers: {'Accept': 'application/json'},
-              )
-              .timeout(const Duration(seconds: 8));
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            offline.setOnline(true);
-            return true;
-          }
-        } catch (_) {
-          // try next
+    if (_pinging) return offline.online;
+    _pinging = true;
+    try {
+      final origins = <String>{
+        baseUrl.replaceFirst(RegExp(r'/api/?$'), ''),
+        // Fallback if baseUrl has no /api suffix
+        baseUrl,
+      };
+      final targets = <Uri>[
+        for (final origin in origins)
+          for (final path in ['/health/', '/api/health/'])
+            Uri.parse('$origin$path'),
+      ];
+
+      for (final uri in targets) {
+        if (await _probe(uri, pingTimeout)) {
+          offline.setOnline(true);
+          return true;
         }
       }
+
+      // Slow pass — the service may simply be cold-starting. Probe the one
+      // endpoint guaranteed to answer 200 once it is up (works with a baseUrl
+      // that does or does not end in /api).
+      if (await _probe(Uri.parse('$baseUrl/health/'), pingWarmupTimeout)) {
+        offline.setOnline(true);
+        return true;
+      }
+
+      offline.setOnline(false);
+      return false;
+    } finally {
+      _pinging = false;
     }
-    offline.setOnline(false);
-    return false;
+  }
+
+  Future<bool> _probe(Uri uri, Duration timeout) async {
+    try {
+      final res = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(timeout);
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Flush queued offline mutations to the server, then refresh caches.
@@ -329,7 +362,7 @@ class Api {
       }
     }
 
-    return sendReq().timeout(const Duration(seconds: 20));
+    return sendReq().timeout(requestTimeout);
   }
 
   String _messageOf(dynamic data, http.Response res) {

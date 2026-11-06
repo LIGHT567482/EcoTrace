@@ -17,6 +17,9 @@ export function clearTokens() {
   localStorage.removeItem("ecotrace_access");
   localStorage.removeItem("ecotrace_refresh");
   localStorage.removeItem("ecotrace_user");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("ecotrace:session-expired"));
+  }
 }
 
 export function getCachedUser() {

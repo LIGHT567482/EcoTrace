@@ -1,6 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Navigate,
+  RouterProvider,
+  useLocation,
+} from "react-router-dom";
 import "./styles.css";
 import { AuthProvider, useAuth } from "./auth";
 import Layout from "./components/Layout";
@@ -39,8 +44,10 @@ function Home() {
 
 function Protected({ children, roles, loginPath = "/login" }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="center-page">Loading…</div>;
-  if (!user) return <Navigate to={loginPath} replace />;
+  if (!user)
+    return <Navigate to={loginPath} replace state={{ from: location }} />;
   if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
 }
@@ -70,8 +77,22 @@ const router = createBrowserRouter([
           </Protected>
         ),
       },
-      { path: "/requests", element: <RequestsPage /> },
-      { path: "/requests/:id", element: <RequestDetailPage /> },
+      {
+        path: "/requests",
+        element: (
+          <Protected>
+            <RequestsPage />
+          </Protected>
+        ),
+      },
+      {
+        path: "/requests/:id",
+        element: (
+          <Protected>
+            <RequestDetailPage />
+          </Protected>
+        ),
+      },
       {
         path: "/wallet",
         element: (
