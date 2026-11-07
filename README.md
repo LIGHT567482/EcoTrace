@@ -137,26 +137,19 @@ cd backend
 python -m venv ../.venv && source ../.venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py seed_ecotrace     # categories, item types, drop-off points, demo users
+python manage.py bootstrap_admin  # create the configured administrator once
 python manage.py runserver         # http://localhost:8000
 ```
 
 Configuration is read from `backend/.env`. With no Postgres variables set, SQLite (`backend/db.sqlite3`) is used automatically.
 
-**Seed demo accounts** (phone · password · role):
+Set `ECOTRACE_ADMIN_PHONE` and `ECOTRACE_ADMIN_PASSWORD` in `backend/.env` before bootstrapping locally, and configure the same variables as private environment values on the production host. The bootstrap command creates a superuser only when that phone is not already registered; it never resets an existing administrator's password. New deployments no longer create demo users, categories, item types, or drop-off points. Create operational users through the administrator tools and add catalogue and drop-off records after first sign-in. Public self-registration still creates consumer accounts only; collector, recycler and administrator accounts are provisioned through the administrator tools.
 
-| Phone | Password | Role |
-| --- | --- | --- |
-| `+256761095861` | Set privately in `backend/.env` | Administrator |
-| `+256700000011` | `collect12345` | Collector |
-| `+256700000012` | `recycle12345` | Recycler |
-| `+256700000013` | `consumer12345` | Consumer |
-
-Public self-registration creates consumer accounts only. Collector, recycler and administrator accounts are provisioned through the admin tools.
+To return an existing database to a first-run state, run `python manage.py purge_seed_data --confirm` from the backend directory. It clears every seeded and user-generated record in one transaction - users, catalogue, drop-off points, items, requests, rewards, notifications, audit entries and sessions - while leaving migrations untouched, so new users can register and `bootstrap_admin` creates the first administrator again on the next run. Run the same command once against a deployed instance's database when resetting production.
 
 Administrators use the shared web sign-in at `http://localhost:5173/login` (the same page as every other role — there is no separate admin login page). After authorization, administrators land on the role-specific home page at `/`; the detailed Reports feature is at `/admin`. Reports and Audit Trail have branded print layouts; choose **Save as PDF** in the browser's print dialog to export them. The Categories page supports creating categories and item types, and searchable lists are available for requests, items, users, categories, payouts, notifications, shipments, drop-off points, and audit entries. A dedicated admin API login also exists at `POST /api/auth/admin/token/`; the backend checks the account's stored role and issues no token to non-admin users. Admin API routes also enforce server-side permissions, so changing a URL or browser-stored role does not grant access. Django's built-in administration site is a separate endpoint at `http://localhost:8000/admin/`.
 
-Set `ECOTRACE_ADMIN_PHONE` and `ECOTRACE_ADMIN_PASSWORD` in `backend/.env` before seeding; do not put administrator passwords in source control or documentation. The seed command resets the configured administrator's password and repairs its role, active status, and staff access; it also disables the legacy demo administrator. When `DJANGO_DEBUG=0`, configure a unique `DJANGO_SECRET_KEY` of at least 32 characters; the app refuses to start in production mode with the development signing key.
+Do not put administrator passwords in source control or documentation. When `DJANGO_DEBUG=0`, configure a unique `DJANGO_SECRET_KEY` of at least 32 characters; the app refuses to start in production mode with the development signing key.
 
 ### 8.2 Web app (React + Vite)
 
@@ -168,6 +161,8 @@ npm run dev          # http://localhost:5173
 
 Points at the API via `VITE_API_URL` (default `https://ecotrace-api-sr9f.onrender.com/api`). `npm run build` produces `dist/`; `npm run lint` runs Oxlint.
 
+Signed-out visitors to `/` get the marketing landing page (sign-in and registration remain at `/login` and `/register`). Once signed in, the sidebar footer always shows the profile chip together with the **Sign out** button; below the 860 px breakpoint the sidebar collapses behind the hamburger and the footer appears with it. The web build never uses the three-dot account menu - that control belongs to the Android app only.
+
 ### 8.3 Mobile app (Flutter)
 
 ```bash
@@ -177,6 +172,8 @@ flutter run --dart-define=API_URL=http://10.0.2.2:8000/api   # local backend on 
 ```
 
 Without the define the app talks to the deployed API (`https://ecotrace-api-sr9f.onrender.com/api`), which is also the default for the web app. The app is offline-first: it caches every GET and queues writes until the API answers again.
+
+The app bar account controls adapt to the device: the three vertical dots (⋮) overflow menu - holding the profile and **Sign out** - appears only in the Android app on screens narrower than 600 dp. On wider Android layouts, and on the Flutter web build, the profile and the **Sign out** button are shown inline in the app bar instead (labelled button when the screen is wide enough, icon-only when it is not).
 
 ### 8.4 Verifying a full cycle locally
 

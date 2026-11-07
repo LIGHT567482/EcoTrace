@@ -124,29 +124,22 @@ export default function Layout() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <details className="account-menu">
-            <summary aria-label="Account options" title="Account options">
-              <span aria-hidden="true">⋮</span>
-            </summary>
-            <div className="account-menu-panel">
-              <div className="user-chip">
-                <strong>{user.full_name || user.phone}</strong>
-                <small>{user.phone}</small>
-                <small>
-                  {user.role} · {user.town}
-                </small>
-              </div>
-              <button
-                className="btn danger"
-                onClick={() => {
-                  logout();
-                  navigate("/login");
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          </details>
+          <div className="user-chip">
+            <strong>{user.full_name || user.phone}</strong>
+            <small>{user.phone}</small>
+            <small>
+              {user.role} · {user.town}
+            </small>
+          </div>
+          <button
+            className="btn danger"
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+          >
+            Sign out
+          </button>
         </div>
       </aside>
       <main className="content">

@@ -172,61 +172,23 @@ small {
   border-top: 1px solid var(--line);
   padding-top: 0.75rem;
   display: flex;
-  justify-content: flex-end;
-  position: relative;
-}
-
-.account-menu {
-  position: relative;
-}
-
-.account-menu summary {
+  justify-content: space-between;
   align-items: center;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  cursor: pointer;
-  display: flex;
-  font-size: 1.7rem;
-  height: 2.5rem;
-  justify-content: center;
-  line-height: 1;
-  list-style: none;
-  width: 2.5rem;
-}
-
-.account-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.account-menu summary:hover,
-.account-menu[open] summary {
-  background: var(--bg);
-}
-
-.account-menu-panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  bottom: calc(100% + 0.5rem);
-  box-shadow: var(--shadow);
-  display: grid;
   gap: 0.75rem;
-  min-width: 220px;
-  padding: 1rem;
-  position: absolute;
-  right: 0;
-  z-index: 30;
 }
 
 .user-chip {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .user-chip strong {
   color: var(--ink);
   font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .user-chip small {

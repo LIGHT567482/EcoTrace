@@ -4,8 +4,8 @@ services:
     runtime: python
     rootDir: backend
     plan: free
-    buildCommand: pip install -r requirements.txt && pip install gunicorn && python manage.py migrate --noinput && python manage.py seed_ecotrace
-    startCommand: python manage.py migrate --noinput && python manage.py seed_ecotrace || true; gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+    buildCommand: pip install -r requirements.txt && pip install gunicorn && python manage.py migrate --noinput
+    startCommand: python manage.py migrate --noinput && python manage.py bootstrap_admin && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
     healthCheckPath: /api/health/
     envVars:
       - key: DJANGO_DEBUG
@@ -40,6 +40,10 @@ services:
         fromDatabase:
           name: ecotrace-db
           property: port
+      - key: ECOTRACE_ADMIN_PHONE
+        sync: false
+      - key: ECOTRACE_ADMIN_PASSWORD
+        sync: false
 
 databases:
   - name: ecotrace-db

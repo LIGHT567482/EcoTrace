@@ -1,6 +1,19 @@
+import os
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.management import CommandError, call_command
 from django.test import TestCase
 from rest_framework.test import APIClient
+
+from apps.rewards.models import Wallet, get_or_create_wallet
+from apps.waste.models import (
+    Category,
+    CollectionRequest,
+    DropOffPoint,
+    Item,
+    ItemType,
+)
 
 from .models import AuditLog, Notification
 
@@ -208,7 +221,9 @@ class StakeholderMessageTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertTrue(
             Notification.objects.filter(
-                user=self.collector, title="Message from Consumer", body="Pickup is ready."
+                user=self.collector,
+                title="Message from Consumer",
+                body="Pickup is ready.",
             ).exists()
         )
         response = self.client.post(
@@ -229,3 +244,136 @@ class StakeholderMessageTests(TestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 201, response.content)
+
+
+class AdminBootstrapTests(TestCase):
+    @patch.dict(
+        os.environ,
+        {
+            "ECOTRACE_ADMIN_PHONE": "+256700111050",
+            "ECOTRACE_ADMIN_PASSWORD": "FirstRunAdminPass123!",
+        },
+    )
+    def test_creates_admin_once_without_resetting_existing_password(self):
+        call_command("bootstrap_admin")
+        admin = User.objects.get(phone="+256700111050")
+        self.assertEqual(admin.role, User.Role.ADMIN)
+        self.assertTrue(admin.is_staff)
+        self.assertTrue(admin.is_superuser)
+        self.assertTrue(admin.check_password("FirstRunAdminPass123!"))
+
+        admin.set_password("ChangedAdminPass123!")
+        admin.save(update_fields=["password"])
+        call_command("bootstrap_admin")
+        admin.refresh_from_db()
+
+        self.assertTrue(admin.check_password("ChangedAdminPass123!"))
+
+    @patch.dict(
+        os.environ,
+        {
+            "ECOTRACE_ADMIN_PHONE": "+256700111051",
+            "ECOTRACE_ADMIN_PASSWORD": "FirstRunAdminPass123!",
+        },
+    )
+    def test_refuses_to_promote_an_existing_non_admin(self):
+        User.objects.create_user(
+            phone="+256700111051",
+            password="RegularUserPass123!",
+            role=User.Role.CONSUMER,
+        )
+
+        with self.assertRaises(CommandError):
+            call_command("bootstrap_admin")
+
+        self.assertEqual(
+            User.objects.get(phone="+256700111051").role,
+            User.Role.CONSUMER,
+        )
+
+
+class PurgeSeedDataTests(TestCase):
+    def setUp(self):
+        self.seed_admin = User.objects.create_user(
+            phone="+256761095861",
+            password="SeedAdminPass123!",
+            role=User.Role.ADMIN,
+            is_staff=True,
+        )
+        self.demo_collector = User.objects.create_user(
+            phone="+256700000011",
+            password="collect12345",
+            role=User.Role.COLLECTOR,
+        )
+        self.consumer = User.objects.create_user(
+            phone="+256700000013",
+            password="consumer12345",
+            role=User.Role.CONSUMER,
+        )
+        self.category = Category.objects.create(name="Phones", slug="phones")
+        self.item_type = ItemType.objects.create(
+            category=self.category, name="Smartphone"
+        )
+        self.item = Item.objects.create(
+            consumer=self.consumer, item_type=self.item_type
+        )
+        self.drop_off = DropOffPoint.objects.create(
+            name="Kansanga Market Collection Bay", address="Kansanga"
+        )
+        self.request = CollectionRequest.objects.create(
+            consumer=self.consumer,
+            dropoff_point=self.drop_off,
+            request_type=CollectionRequest.Type.DROPOFF,
+        )
+        self.wallet = get_or_create_wallet(self.consumer)
+        Notification.objects.create(
+            user=self.consumer, title="Seed notice", body="Seeded message."
+        )
+        AuditLog.objects.create(
+            actor=self.consumer,
+            action="seed",
+            method="POST",
+            path="/api/seed/",
+            status_code=201,
+        )
+
+    def test_requires_confirmation(self):
+        with self.assertRaises(CommandError):
+            call_command("purge_seed_data")
+
+        self.assertTrue(User.objects.filter(pk=self.seed_admin.pk).exists())
+        self.assertTrue(Item.objects.filter(pk=self.item.pk).exists())
+
+    @patch.dict(
+        os.environ,
+        {
+            "ECOTRACE_ADMIN_PHONE": "+256700111060",
+            "ECOTRACE_ADMIN_PASSWORD": "FirstRunAdminPass123!",
+        },
+    )
+    def test_empties_database_and_first_run_creates_the_admin(self):
+        call_command("purge_seed_data", confirm=True)
+
+        for model in (
+            User,
+            Category,
+            ItemType,
+            Item,
+            CollectionRequest,
+            DropOffPoint,
+            Wallet,
+            Notification,
+            AuditLog,
+        ):
+            self.assertFalse(
+                model.objects.exists(),
+                f"{model._meta.label} still has rows after the purge",
+            )
+
+        call_command("bootstrap_admin")
+
+        admin = User.objects.get(phone="+256700111060")
+        self.assertEqual(admin.role, User.Role.ADMIN)
+        self.assertTrue(admin.is_superuser)
+        self.assertTrue(admin.check_password("FirstRunAdminPass123!"))
+        self.assertEqual(User.objects.count(), 1)

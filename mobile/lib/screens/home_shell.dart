@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -59,6 +60,12 @@ class _HomeShellState extends State<HomeShell> {
     final user = session.user!;
     final offline = session.offline;
     final tabs = _tabsFor(user.role);
+    // Overflow menu only for the Android app on small screens; wider layouts
+    // (tablets, desktop, the web build) keep the inline account controls.
+    final smallScreen = MediaQuery.sizeOf(context).width < 600;
+    final useOverflowMenu = !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        smallScreen;
     final destinations = tabs
         .map((t) => NavigationDestination(icon: t.icon, label: t.label))
         .toList();
@@ -163,47 +170,7 @@ class _HomeShellState extends State<HomeShell> {
                 onPressed: () => setState(() => utilityPage = 'messages'),
               ),
             ],
-            PopupMenuButton<String>(
-              tooltip: 'Account options',
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                if (value == 'logout') _confirmLogout(context);
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem<String>(
-                  enabled: false,
-                  child: SizedBox(
-                    width: 190,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.fullName.isNotEmpty ? user.fullName : user.phone,
-                          style: const TextStyle(
-                            color: kInk,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        Text(user.phone, style: const TextStyle(color: kMuted)),
-                        Text(
-                          '${user.role} · ${user.town}',
-                          style: const TextStyle(color: kMuted, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const PopupMenuDivider(),
-                const PopupMenuItem<String>(
-                  value: 'logout',
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.logout),
-                    title: Text('Sign out'),
-                  ),
-                ),
-              ],
-            ),
+            _accountActions(user, useOverflowMenu, smallScreen),
           ],
         ),
         body: Column(
@@ -234,6 +201,97 @@ class _HomeShellState extends State<HomeShell> {
           }),
           destinations: destinations,
         ),
+      ),
+    );
+  }
+
+  Widget _accountActions(AppUser user, bool overflowMenu, bool smallScreen) {
+    if (overflowMenu) {
+      return PopupMenuButton<String>(
+        tooltip: 'Account options',
+        icon: const Icon(Icons.more_vert),
+        onSelected: (value) {
+          if (value == 'logout') _confirmLogout(context);
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            enabled: false,
+            child: SizedBox(
+              width: 190,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.fullName.isNotEmpty ? user.fullName : user.phone,
+                    style: const TextStyle(
+                      color: kInk,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(user.phone, style: const TextStyle(color: kMuted)),
+                  Text(
+                    '${user.role} · ${user.town}',
+                    style: const TextStyle(color: kMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem<String>(
+            value: 'logout',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.logout),
+              title: Text('Sign out'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(right: smallScreen ? 0 : 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: smallScreen ? 110 : 180),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.fullName.isNotEmpty ? user.fullName : user.phone,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: kInk,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (!smallScreen)
+                  Text(
+                    '${user.role} · ${user.town}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: kMuted, fontSize: 12),
+                  ),
+              ],
+            ),
+          ),
+          smallScreen
+              ? IconButton(
+                  tooltip: 'Sign out',
+                  onPressed: () => _confirmLogout(context),
+                  icon: const Icon(Icons.logout),
+                )
+              : TextButton.icon(
+                  onPressed: () => _confirmLogout(context),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Sign out'),
+                ),
+        ],
       ),
     );
   }

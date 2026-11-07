@@ -9,6 +9,7 @@ import {
 import "./styles.css";
 import { AuthProvider, useAuth } from "./auth";
 import Layout from "./components/Layout";
+import Landing from "./pages/Landing";
 import MapPage from "./pages/MapPage";
 import AuthPage from "./pages/AuthPage";
 import ItemsPage from "./pages/consumer/ItemsPage";
@@ -34,7 +35,7 @@ import RewardPolicyPage from "./pages/admin/RewardPolicyPage";
 function Home() {
   const { user, loading } = useAuth();
   if (loading) return <div className="center-page">Loading…</div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Landing />;
   if (user.role === "ADMIN") return <AdminHomeDashboard />;
   return <HomeDashboard />;
 }
