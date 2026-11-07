@@ -116,7 +116,7 @@ class Command(BaseCommand):
             *SEED_USERS,
         ]
         for phone, name, role, town, password in seed_users:
-            user, created = User.objects.get_or_create(
+            user, _created = User.objects.get_or_create(
                 phone=phone,
                 defaults={
                     "full_name": name,
@@ -125,17 +125,15 @@ class Command(BaseCommand):
                     "is_staff": role == User.Role.ADMIN,
                 },
             )
-            if created:
-                user.set_password(password)
-                user.save(update_fields=["password"])
-            if role == User.Role.ADMIN:
-                user.role = User.Role.ADMIN
-                user.is_staff = True
-                user.is_active = True
-                user.set_password(password)
-                user.save(
-                    update_fields=["role", "is_staff", "is_active", "password"]
-                )
+            # Seed accounts always keep their canonical role and password so
+            # demo/admin logins survive redeploys and stray registrations.
+            user.role = role
+            user.is_active = True
+            user.is_staff = role == User.Role.ADMIN
+            user.set_password(password)
+            user.save(
+                update_fields=["role", "is_active", "is_staff", "password"]
+            )
             get_or_create_wallet(user)
         self.stdout.write(
             self.style.SUCCESS(
