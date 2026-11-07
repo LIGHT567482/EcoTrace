@@ -31,15 +31,24 @@ class _AdminUser {
       );
 }
 
+/// "14:32" for an ISO-8601 timestamp, or "" when it cannot be parsed.
+String _clock(dynamic iso) {
+  final t = DateTime.tryParse(iso?.toString() ?? '');
+  if (t == null) return '';
+  final l = t.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${two(l.hour)}:${two(l.minute)}';
+}
+
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
-
   @override
   State<UsersScreen> createState() => _UsersScreenState();
 }
 
 class _UsersScreenState extends State<UsersScreen> {
   List<_AdminUser> users = [];
+  List<Map<String, dynamic>> resets = [];
   String error = '';
 
   @override
@@ -49,8 +58,8 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   Future<void> load() async {
+    final api = context.read<Session>().api;
     try {
-      final api = context.read<Session>().api;
       final data = await api.request('/users/?page_size=100');
       final list = (data['results'] ?? data) as List<dynamic>;
       setState(() => users = list
@@ -58,6 +67,15 @@ class _UsersScreenState extends State<UsersScreen> {
           .toList());
     } catch (e) {
       setState(() => error = e.toString());
+    }
+    try {
+      final data =
+          await api.request('/auth/password-reset/requests/') as List<dynamic>;
+      setState(() => resets = data
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList());
+    } catch (_) {
+      // Codes are a convenience — never break the user list over them.
     }
   }
 
@@ -189,6 +207,30 @@ class _UsersScreenState extends State<UsersScreen> {
         ),
         const SizedBox(height: 12),
         if (error.isNotEmpty) ErrorBanner(message: error),
+        if (resets.isNotEmpty) ...[
+          const Text('Password reset requests',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text(
+            'Read the code aloud to the account owner — it expires 15 '
+            'minutes after it was requested.',
+            style: TextStyle(color: kMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          ...resets.map((r) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: const Icon(Icons.pin_outlined),
+                  title: Text('${r['code']}'),
+                  subtitle: Text(
+                    '${r['user']} · ${r['phone']}\n'
+                    'Expires at ${_clock(r['expires_at'])}',
+                  ),
+                  isThreeLine: true,
+                ),
+              )),
+          const SizedBox(height: 8),
+        ],
         ...users.map((u) => Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
