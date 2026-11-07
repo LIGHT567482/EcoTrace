@@ -1,0 +1,156 @@
+{
+  "planHash": "6c47dc43d731343ec7d574f5cd6e468af7ee8f7af6727184ed408e3ae0dc8b19",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-07T01:31:21.3388325Z",
+  "retryCount": 0,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 13093,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "production-build",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "npm notice run web@0.0.0 build\nnpm notice run vite build\nvite v8.3.5 building client environment for production...\ntransforming...\n\u2713 52 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.45 kB \u2502 gzip:   0.28 kB\ndist/assets/index-Bb9n9gjN.css   23.39 kB \u2502 gzip:   5.61 kB\ndist/assets/index-sqjd6rVD.js   404.55 kB \u2502 gzip: 118.62 kB\n\n\u2713 built in 1.00s\n",
+        "durationMs": 2795
+      },
+      {
+        "name": "web-lint",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "npm notice run web@0.0.0 lint\nnpm notice run oxlint\nsrc/pages/RequestsPage.jsx:29:9: warning react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: \u0027user.role\u0027 help: Either include it or remove the dependency array.\nsrc/main.jsx:34:10: warning react(only-export-components): Fast refresh only works when a file has exports. Move your component(s) to a separate file.\nsrc/main.jsx:42:10: warning react(only-export-components): Fast refresh only works when a file has exports. Move your component(s) to a separate file.\nsrc/auth.jsx:49:17: warning react(only-export-components): Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components.\nsrc/pages/RequestDetailPage.jsx:38:9: warning eslint(no-unused-vars): Variable \u0027mine\u0027 is declared but never used. Unused variables should start with a \u0027_\u0027. help: Consider removing this declaration.\nsrc/pages/RequestDetailPage.jsx:39:9: warning eslint(no-unused-vars): Variable \u0027collectorAssigned\u0027 is declared but never used. Unused variables should start with a \u0027_\u0027. help: Consider removing this declaration.\n",
+        "durationMs": 1394
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "npm notice run web@0.0.0 test\nnpm notice run vitest run\n\n RUN  v5.1.0 /home/light/Desktop/E-WASTE/web\n\n\n Test Files  2 passed (2)\n      Tests  3 passed (3)\n   Start at  18:31:15\n   Duration  4.40s (environment 65%, import 15%, tests 13%, transform 6%, worker 1%)\n\n",
+        "durationMs": 6351,
+        "testResults": {
+          "testFramework": "vitest",
+          "runnerDetectedFrom": "package_json",
+          "testsTotal": 3,
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": false
+        }
+      },
+      {
+        "name": "web-dev-server-responds",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!doctype html\u003E\n\u003Chtml lang=\u0022en\u0022\u003E\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\n    \u003Clink rel=\u0022icon\u0022 type=\u0022image/png\u0022 href=\u0022/favicon.png\u0022 /\u003E\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\n    \u003Ctitle\u003EEcoTrace\u003C/title\u003E\n  \u003C/head\u003E\n  \u003Cbody\u003E\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.jsx\u0022\u003E\u003C/script\u003E\n  \u003C/body\u003E\n\u003C/html\u003E\n",
+        "durationMs": 38
+      }
+    ],
+    "executions": [
+      {
+        "source": "setup[0]",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "ci"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      },
+      {
+        "source": "devServer",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "run",
+          "dev",
+          "--",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "5173",
+          "--strictPort"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      },
+      {
+        "source": "production-build",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "run",
+          "build"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      },
+      {
+        "source": "web-lint",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "run",
+          "lint"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "test"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      },
+      {
+        "source": "web-dev-server-responds",
+        "resolvedExecutable": "/usr/bin/npm",
+        "args": [
+          "run",
+          "dev",
+          "--",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "5173",
+          "--strictPort"
+        ],
+        "cwd": "/home/light/Desktop/E-WASTE/web",
+        "env": {},
+        "prependPath": [],
+        "platform": "linux"
+      }
+    ]
+  }
+}

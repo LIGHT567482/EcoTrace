@@ -15,6 +15,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool registerMode = false;
   bool busy = false;
+  bool obscurePassword = true;
   String error = '';
   final phone = TextEditingController();
   final password = TextEditingController();
@@ -122,8 +123,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        size: 20,
+                      ),
+                      tooltip: obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      onPressed: () =>
+                          setState(() => obscurePassword = !obscurePassword),
+                    ),
+                  ),
                 ),
                 if (registerMode) ...[
                   const SizedBox(height: 12),

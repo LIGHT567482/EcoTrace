@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth";
-import { PublicFooter, PublicHeader } from "./PublicChrome";
 
 const NAV = {
   CONSUMER: [
@@ -78,11 +77,9 @@ export default function Layout() {
   if (!user)
     return (
       <div className="public-shell">
-        <PublicHeader />
         <main className="public-main">
           <Outlet />
         </main>
-        <PublicFooter />
       </div>
     );
 
@@ -127,21 +124,29 @@ export default function Layout() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="user-chip">
-            <strong>{user.full_name || user.phone}</strong>
-            <small>
-              {user.role} · {user.town}
-            </small>
-          </div>
-          <button
-            className="btn danger"
-            onClick={() => {
-              logout();
-              navigate("/login");
-            }}
-          >
-            Sign out
-          </button>
+          <details className="account-menu">
+            <summary aria-label="Account options" title="Account options">
+              <span aria-hidden="true">⋮</span>
+            </summary>
+            <div className="account-menu-panel">
+              <div className="user-chip">
+                <strong>{user.full_name || user.phone}</strong>
+                <small>{user.phone}</small>
+                <small>
+                  {user.role} · {user.town}
+                </small>
+              </div>
+              <button
+                className="btn danger"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </details>
         </div>
       </aside>
       <main className="content">

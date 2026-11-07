@@ -9,9 +9,6 @@ import {
 import "./styles.css";
 import { AuthProvider, useAuth } from "./auth";
 import Layout from "./components/Layout";
-import Landing from "./pages/Landing";
-import RolesPage from "./pages/RolesPage";
-import ImpactPage from "./pages/ImpactPage";
 import MapPage from "./pages/MapPage";
 import AuthPage from "./pages/AuthPage";
 import ItemsPage from "./pages/consumer/ItemsPage";
@@ -37,7 +34,7 @@ import RewardPolicyPage from "./pages/admin/RewardPolicyPage";
 function Home() {
   const { user, loading } = useAuth();
   if (loading) return <div className="center-page">Loading…</div>;
-  if (!user) return <Landing />;
+  if (!user) return <Navigate to="/login" replace />;
   if (user.role === "ADMIN") return <AdminHomeDashboard />;
   return <HomeDashboard />;
 }
@@ -57,8 +54,6 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { path: "/", element: <Home /> },
-      { path: "/roles", element: <RolesPage /> },
-      { path: "/impact", element: <ImpactPage /> },
       { path: "/login", element: <AuthPage /> },
       { path: "/register", element: <AuthPage /> },
       {

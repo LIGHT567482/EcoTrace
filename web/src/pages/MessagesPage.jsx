@@ -106,7 +106,13 @@ export default function MessagesPage() {
           )}
           {!contacts.length && <p className="empty">No eligible stakeholders are available.</p>}
         </div>
-        <form className="form message-compose" onSubmit={send}>
+            {!selectedContact && (
+              <p className="muted">
+                You can draft a message, but it can’t be sent until an eligible
+                recipient is available.
+              </p>
+            )}
+            <form className="form message-compose" onSubmit={send}>
           <label className="field">
             Message
             <textarea
@@ -114,8 +120,9 @@ export default function MessagesPage() {
               onChange={(event) => setBody(event.target.value)}
               maxLength={2000}
               rows={3}
-              required
-              disabled={!contactId || busy}
+              aria-label="Message"
+              placeholder="Write your message…"
+              disabled={busy}
             />
           </label>
           <button className="btn" disabled={!contactId || !body.trim() || busy}>

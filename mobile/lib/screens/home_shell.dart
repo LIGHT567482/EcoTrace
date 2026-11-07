@@ -27,6 +27,7 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
+  String? utilityPage;
   Timer? _refreshTimer;
 
   @override
@@ -62,125 +63,177 @@ class _HomeShellState extends State<HomeShell> {
         .map((t) => NavigationDestination(icon: t.icon, label: t.label))
         .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset(
-              'assets/images/logo.png',
-              width: 36,
-              height: 36,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(
-                'EcoTrace · ${user.role[0]}${user.role.substring(1).toLowerCase()}',
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (offline.pendingCount > 0 || !offline.online)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: offline.online
-                        ? const Color(0xFFE0F0FF)
-                        : const Color(0xFFFFF4E0),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    offline.online
-                        ? '${offline.pendingCount} pending'
-                        : 'Offline',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: offline.online
-                          ? const Color(0xFF14497F)
-                          : const Color(0xFF7A5600),
+    return PopScope(
+      canPop: utilityPage == null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && utilityPage != null) {
+          setState(() => utilityPage = null);
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: utilityPage == null
+              ? null
+              : IconButton(
+                  tooltip: 'Back to home',
+                  onPressed: () => setState(() => utilityPage = null),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+          title: utilityPage == null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Image.asset(
+                      'assets/images/logo.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        'EcoTrace · ${user.role[0]}${user.role.substring(1).toLowerCase()}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(utilityPage == 'messages' ? 'Messages' : 'Notifications'),
+          actions: [
+            if (utilityPage == null) ...[
+              if (offline.pendingCount > 0 || !offline.online)
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: offline.online
+                            ? const Color(0xFFE0F0FF)
+                            : const Color(0xFFFFF4E0),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        offline.online
+                            ? '${offline.pendingCount} pending'
+                            : 'Offline',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: offline.online
+                              ? const Color(0xFF14497F)
+                              : const Color(0xFF7A5600),
+                        ),
+                      ),
                     ),
                   ),
                 ),
+              IconButton(
+                icon: const Icon(Icons.sync),
+                tooltip: 'Sync now',
+                onPressed: () async {
+                  final s = context.read<Session>();
+                  await s.api.syncNow();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          s.offline.online
+                              ? 'Synced with server'
+                              : 'Still offline — changes stay queued',
+                        ),
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                  if (mounted) setState(() {});
+                },
               ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.sync),
-            tooltip: 'Sync now',
-            onPressed: () async {
-              final s = context.read<Session>();
-              await s.api.syncNow();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      s.offline.online
-                          ? 'Synced with server'
-                          : 'Still offline — changes stay queued',
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Notifications',
+                onPressed: () => setState(() => utilityPage = 'notifications'),
+              ),
+              IconButton(
+                icon: const Icon(Icons.forum_outlined),
+                tooltip: 'Messages',
+                onPressed: () => setState(() => utilityPage = 'messages'),
+              ),
+            ],
+            PopupMenuButton<String>(
+              tooltip: 'Account options',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'logout') _confirmLogout(context);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: SizedBox(
+                    width: 190,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.fullName.isNotEmpty ? user.fullName : user.phone,
+                          style: const TextStyle(
+                            color: kInk,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(user.phone, style: const TextStyle(color: kMuted)),
+                        Text(
+                          '${user.role} · ${user.town}',
+                          style: const TextStyle(color: kMuted, fontSize: 12),
+                        ),
+                      ],
                     ),
-                    duration: const Duration(seconds: 2),
                   ),
-                );
-              }
-              if (mounted) setState(() {});
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            tooltip: 'Notifications',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign out'),
+                  ),
+                ),
+              ],
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.forum_outlined),
-            tooltip: 'Messages',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MessagesScreen()),
+          ],
+        ),
+        body: Column(
+          children: [
+            OfflineBanner(
+              online: offline.online,
+              pending: offline.pendingCount,
+              syncing: offline.syncing,
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sign out',
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+            Expanded(
+              child: switch (utilityPage) {
+                'messages' => const MessagesScreen(showAppBar: false),
+                'notifications' => const NotificationsScreen(showAppBar: false),
+                _ => IndexedStack(
+                  index: index,
+                  children: tabs.map((t) => t.screen).toList(),
+                ),
+              },
             ),
-            onPressed: () => _confirmLogout(context),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          OfflineBanner(
-            online: offline.online,
-            pending: offline.pendingCount,
-            syncing: offline.syncing,
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: index,
-              children: tabs.map((t) => t.screen).toList(),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        backgroundColor: Colors.white,
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
-        destinations: destinations,
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          backgroundColor: Colors.white,
+          selectedIndex: index,
+          onDestinationSelected: (i) => setState(() {
+            index = i;
+            utilityPage = null;
+          }),
+          destinations: destinations,
+        ),
       ),
     );
   }

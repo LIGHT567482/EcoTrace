@@ -5,7 +5,7 @@ import 'core/api.dart';
 import 'core/session.dart';
 import 'core/widgets.dart';
 import 'screens/home_shell.dart';
-import 'screens/welcome_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,10 +43,12 @@ class _EcoTraceAppState extends State<EcoTraceApp> {
           future: _init,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
             }
             final session = context.watch<Session>();
-            if (session.user == null) return const WelcomeScreen();
+            if (session.user == null) return const LoginScreen();
             return const HomeShell();
           },
         ),

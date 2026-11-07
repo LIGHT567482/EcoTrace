@@ -7,7 +7,8 @@ import '../core/session.dart';
 import '../core/widgets.dart';
 
 class MessagesScreen extends StatefulWidget {
-  const MessagesScreen({super.key});
+  final bool showAppBar;
+  const MessagesScreen({super.key, this.showAppBar = true});
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
@@ -112,20 +113,31 @@ class _MessagesScreenState extends State<MessagesScreen> {
         : '${selected.first['full_name'] ?? selected.first['phone']} · ${selected.first['role']}';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Messages'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh messages',
-            onPressed: loadContacts,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: const Text('Messages'),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh messages',
+                  onPressed: loadContacts,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            )
+          : null,
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (!widget.showAppBar)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      tooltip: 'Refresh messages',
+                      onPressed: loadContacts,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ),
                 if (error.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.all(12),
@@ -167,6 +179,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         selectedName,
                         style: const TextStyle(color: kMuted, fontSize: 12),
                       ),
+                    ),
+                  ),
+                if (contacts.isEmpty && !loading)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Text(
+                      'You can draft a message, but it cannot be sent until an eligible recipient is available.',
+                      style: TextStyle(color: kMuted, fontSize: 12),
                     ),
                   ),
                 Expanded(
@@ -254,7 +274,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             maxLength: 2000,
                             minLines: 1,
                             maxLines: 4,
-                            enabled: contacts.isNotEmpty && !sending,
+                            enabled: !sending,
                             decoration: const InputDecoration(
                               labelText: 'Message',
                               counterText: '',

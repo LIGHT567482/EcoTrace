@@ -8,7 +8,8 @@ import 'request_detail_screen.dart';
 import 'requests_list_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final bool showAppBar;
+  const NotificationsScreen({super.key, this.showAppBar = true});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -57,16 +58,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       setState(() {
         unread = unread > 0 ? unread - 1 : 0;
         items = items
-            .map((item) => item.id == notification.id
-                ? AppNotification(
-                    id: item.id,
-                    requestId: item.requestId,
-                    title: item.title,
-                    body: item.body,
-                    isRead: true,
-                    createdAt: item.createdAt,
-                  )
-                : item)
+            .map(
+              (item) => item.id == notification.id
+                  ? AppNotification(
+                      id: item.id,
+                      requestId: item.requestId,
+                      title: item.title,
+                      body: item.body,
+                      isRead: true,
+                      createdAt: item.createdAt,
+                    )
+                  : item,
+            )
             .toList();
       });
     } catch (e) {
@@ -159,21 +162,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Notifications${unread > 0 ? ' ($unread)' : ''}'),
-        actions: [
-          TextButton(
-            onPressed: unread > 0 && !busy ? readAll : null,
-            child: const Text('Mark all read',
-                style: TextStyle(color: Colors.white)),
-          ),
-          IconButton(
-            tooltip: 'Clear all notifications',
-            onPressed: items.isNotEmpty && !busy ? clearAll : null,
-            icon: const Icon(Icons.delete_sweep_outlined),
-          ),
-        ],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: Text('Notifications${unread > 0 ? ' ($unread)' : ''}'),
+              actions: [
+                TextButton(
+                  onPressed: unread > 0 && !busy ? readAll : null,
+                  child: const Text(
+                    'Mark all read',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Clear all notifications',
+                  onPressed: items.isNotEmpty && !busy ? clearAll : null,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                ),
+              ],
+            )
+          : null,
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -181,6 +188,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (!widget.showAppBar)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: unread > 0 && !busy ? readAll : null,
+                            child: const Text('Mark all read'),
+                          ),
+                          IconButton(
+                            tooltip: 'Clear all notifications',
+                            onPressed: items.isNotEmpty && !busy
+                                ? clearAll
+                                : null,
+                            icon: const Icon(Icons.delete_sweep_outlined),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (error.isNotEmpty) ErrorBanner(message: error),
                   ...items.map(
                     (notification) => Card(
@@ -207,8 +234,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           formatDate(notification.createdAt),
                           style: const TextStyle(color: kMuted, fontSize: 11),
                         ),
-                        childrenPadding:
-                            const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          12,
+                        ),
                         children: [
                           Align(
                             alignment: Alignment.centerLeft,
@@ -244,10 +275,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               ),
                               TextButton.icon(
                                 onPressed: () => deleteOne(notification),
-                                icon: const Icon(Icons.delete_outline,
-                                    color: Colors.red),
-                                label: const Text('Delete',
-                                    style: TextStyle(color: Colors.red)),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: Colors.red,
+                                ),
+                                label: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
                             ],
                           ),

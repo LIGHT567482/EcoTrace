@@ -77,6 +77,7 @@ class _UsersScreenState extends State<UsersScreen> {
     final password = TextEditingController();
     final town = TextEditingController(text: 'Kansanga');
     String role = 'CONSUMER';
+    bool obscurePassword = true;
 
     final created = await showDialog<bool>(
       context: context,
@@ -119,8 +120,23 @@ class _UsersScreenState extends State<UsersScreen> {
                 const SizedBox(height: 10),
                 TextField(
                   controller: password,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+                  obscureText: obscurePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        size: 20,
+                      ),
+                      tooltip: obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
+                      onPressed: () => setDialog(
+                          () => obscurePassword = !obscurePassword),
+                    ),
+                  ),
                 ),
               ],
             ),
