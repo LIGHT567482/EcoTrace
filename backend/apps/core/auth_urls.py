@@ -4,9 +4,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .auth_views import (
     ChangePasswordView,
     AdminTokenObtainPairView,
+    ConfirmPasswordResetView,
     MeView,
+    PasswordResetRequestListView,
     PhoneTokenObtainPairView,
     RegisterView,
+    RequestPasswordResetView,
 )
 from .views import (
     NotificationListView,
@@ -27,6 +30,21 @@ urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
     path("me/", MeView.as_view(), name="me"),
     path("change-password/", ChangePasswordView.as_view(), name="change_password"),
+    path(
+        "password-reset/request/",
+        RequestPasswordResetView.as_view(),
+        name="password_reset_request",
+    ),
+    path(
+        "password-reset/confirm/",
+        ConfirmPasswordResetView.as_view(),
+        name="password_reset_confirm",
+    ),
+    path(
+        "password-reset/requests/",
+        PasswordResetRequestListView.as_view(),
+        name="password_reset_requests",
+    ),
     path("notifications/", NotificationListView.as_view(), name="notifications"),
     path("notifications/<int:pk>/read/", mark_read, name="notification_read"),
     path("notifications/<int:pk>/", delete_notification, name="notification_delete"),

@@ -9,6 +9,7 @@ import '../core/widgets.dart';
 import 'admin/redemptions_screen.dart';
 import 'admin/reports_screen.dart';
 import 'admin/users_screen.dart';
+import 'change_password_screen.dart';
 import 'dropoffs_screen.dart';
 import 'home_placeholder.dart';
 import 'items_screen.dart';
@@ -212,6 +213,7 @@ class _HomeShellState extends State<HomeShell> {
         icon: const Icon(Icons.more_vert),
         onSelected: (value) {
           if (value == 'logout') _confirmLogout(context);
+          if (value == 'password') _openChangePassword(context);
         },
         itemBuilder: (context) => [
           PopupMenuItem<String>(
@@ -238,6 +240,14 @@ class _HomeShellState extends State<HomeShell> {
             ),
           ),
           const PopupMenuDivider(),
+          const PopupMenuItem<String>(
+            value: 'password',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.key_outlined),
+              title: Text('Change password'),
+            ),
+          ),
           const PopupMenuItem<String>(
             value: 'logout',
             child: ListTile(
@@ -280,6 +290,11 @@ class _HomeShellState extends State<HomeShell> {
               ],
             ),
           ),
+          IconButton(
+            tooltip: 'Change password',
+            onPressed: () => _openChangePassword(context),
+            icon: const Icon(Icons.key_outlined),
+          ),
           smallScreen
               ? IconButton(
                   tooltip: 'Sign out',
@@ -293,6 +308,13 @@ class _HomeShellState extends State<HomeShell> {
                 ),
         ],
       ),
+    );
+  }
+
+  void _openChangePassword(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
     );
   }
 

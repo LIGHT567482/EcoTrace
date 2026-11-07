@@ -12,6 +12,7 @@ import Layout from "./components/Layout";
 import Landing from "./pages/Landing";
 import MapPage from "./pages/MapPage";
 import AuthPage from "./pages/AuthPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 import ItemsPage from "./pages/consumer/ItemsPage";
 import NewRequestPage from "./pages/consumer/NewRequestPage";
 import RequestsPage from "./pages/RequestsPage";
@@ -57,6 +58,15 @@ const router = createBrowserRouter([
       { path: "/", element: <Home /> },
       { path: "/login", element: <AuthPage /> },
       { path: "/register", element: <AuthPage /> },
+      { path: "/forgot-password", element: <AuthPage /> },
+      {
+        path: "/account/password",
+        element: (
+          <Protected>
+            <ChangePasswordPage />
+          </Protected>
+        ),
+      },
       {
         path: "/items",
         element: (

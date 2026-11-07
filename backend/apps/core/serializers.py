@@ -71,6 +71,26 @@ class ChangePasswordSerializer(serializers.Serializer):
         return value
 
 
+class RequestPasswordResetSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+
+    def validate_phone(self, value):
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError("Enter your phone number.")
+        return cleaned
+
+
+class ConfirmPasswordResetSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+    code = serializers.CharField(min_length=6, max_length=6)
+    new_password = serializers.CharField(write_only=True)
+
+    def validate_new_password(self, value):
+        validate_password(value)
+        return value
+
+
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification

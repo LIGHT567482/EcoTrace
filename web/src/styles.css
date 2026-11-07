@@ -883,6 +883,20 @@ tr:last-child td {
   color: var(--muted);
 }
 
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent, #0a7d4b);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  opacity: 0.8;
+}
+
 .mt {
   margin-top: 1rem;
 }

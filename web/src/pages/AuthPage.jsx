@@ -1,17 +1,25 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { login, register } from "../api";
+import { confirmPasswordReset, login, register, requestPasswordReset } from "../api";
 import { useAuth } from "../auth";
 
 export default function AuthPage() {
   const location = useLocation();
   const isRegister = location.pathname === "/register";
+  const isForgot = location.pathname === "/forgot-password";
   const from = location.state?.from;
   const navigate = useNavigate();
   const { setUser, user, loading } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [resetStep, setResetStep] = useState("phone");
+  const [resetNote, setResetNote] = useState("");
+  const [reset, setReset] = useState({
+    phone: location.state?.phone || "",
+    code: "",
+    password: "",
+  });
   const [form, setForm] = useState({
     phone: "",
     password: "",
@@ -24,6 +32,8 @@ export default function AuthPage() {
   if (user) return <Navigate to="/" replace />;
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const setResetField = (k) => (e) =>
+    setReset({ ...reset, [k]: e.target.value });
 
   async function submit(e) {
     e.preventDefault();
@@ -50,6 +60,124 @@ export default function AuthPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitReset(e) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      if (resetStep === "phone") {
+        const data = await requestPasswordReset(reset.phone);
+        setResetNote(data.detail);
+        setResetStep("code");
+      } else {
+        const data = await confirmPasswordReset({
+          phone: reset.phone,
+          code: reset.code,
+          new_password: reset.password,
+        });
+        setUser(data.user);
+        navigate("/", { replace: true });
+      }
+    } catch (err) {
+      if (err.data && typeof err.data === "object" && !err.data.detail) {
+        const msgs = Object.entries(err.data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" · ");
+        setError(msgs || err.message);
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (isForgot) {
+    return (
+      <div className="center-page">
+        <div className="auth-card">
+          <img className="auth-logo" src="/bg.png" alt="EcoTrace logo" />
+          <p className="muted">
+            {resetStep === "phone"
+              ? "Enter your phone number to reset your password"
+              : "Enter the 6-digit code from your administrator, then pick a new password"}
+          </p>
+          {error && <div className="alert error">{error}</div>}
+          {resetNote && resetStep === "code" && (
+            <div className="alert">{resetNote}</div>
+          )}
+          <form className="form" onSubmit={submitReset}>
+            {resetStep === "phone" ? (
+              <label className="field">
+                Phone number
+                <input
+                  value={reset.phone}
+                  onChange={setResetField("phone")}
+                  placeholder="+2567…"
+                  required
+                />
+              </label>
+            ) : (
+              <>
+                <label className="field">
+                  Reset code
+                  <input
+                    value={reset.code}
+                    onChange={setResetField("code")}
+                    placeholder="6-digit code"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    required
+                  />
+                </label>
+                <label className="field">
+                  New password
+                  <input
+                    type={showPw ? "text" : "password"}
+                    value={reset.password}
+                    onChange={setResetField("password")}
+                    minLength={8}
+                    required
+                  />
+                </label>
+              </>
+            )}
+            <button className="btn" disabled={busy}>
+              {busy
+                ? "Please wait…"
+                : resetStep === "phone"
+                ? "Send reset request"
+                : "Set new password"}
+            </button>
+          </form>
+          <p className="muted" style={{ marginTop: 12 }}>
+            {resetStep === "code" ? (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setResetStep("phone");
+                  setResetNote("");
+                  setError("");
+                }}
+              >
+                Use a different number
+              </button>
+            ) : null}{" "}
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => navigate("/login", { state: location.state })}
+            >
+              Back to sign in
+            </button>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -128,6 +256,21 @@ export default function AuthPage() {
               </button>
             </span>
           </label>
+          {!isRegister && (
+            <p style={{ margin: "0 0 4px", textAlign: "right" }}>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() =>
+                  navigate("/forgot-password", {
+                    state: { ...location.state, phone: form.phone },
+                  })
+                }
+              >
+                Forgot password?
+              </button>
+            </p>
+          )}
           {isRegister && (
             <>
               <label className="field">

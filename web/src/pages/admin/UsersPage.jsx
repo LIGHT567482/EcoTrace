@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { api, formatDate } from "../../api";
+import { api, formatDate, listPasswordResetRequests } from "../../api";
 
 export default function UsersPage() {
   const [data, setData] = useState({ count: 0, results: [] });
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showPw, setShowPw] = useState(false);
+  const [resets, setResets] = useState([]);
   const [form, setForm] = useState({
     phone: "",
     password: "",
@@ -22,7 +23,18 @@ export default function UsersPage() {
       .catch((e) => setError(e.message));
   }
 
+  function loadResets() {
+    listPasswordResetRequests()
+      .then(setResets)
+      .catch(() => {});
+  }
+
   useEffect(load, [search]);
+  useEffect(() => {
+    loadResets();
+    const timer = setInterval(loadResets, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function create(e) {
     e.preventDefault();
@@ -138,6 +150,45 @@ export default function UsersPage() {
           </label>
           <button className="btn">Create</button>
         </form>
+      </div>
+
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3>Password reset requests</h3>
+        <p className="muted">
+          Give the code below to the user over a call or in person, then they can
+          set a new password on the sign-in screen. Codes expire 15 minutes after
+          they are requested.
+        </p>
+        {resets.length === 0 ? (
+          <p className="muted">No pending requests.</p>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Phone</th>
+                  <th>Code</th>
+                  <th>Requested</th>
+                  <th>Expires</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resets.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.user}</td>
+                    <td>{row.phone}</td>
+                    <td>
+                      <strong>{row.code}</strong>
+                    </td>
+                    <td>{formatDate(row.requested_at)}</td>
+                    <td>{formatDate(row.expires_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <label className="field" style={{ marginBottom: "1rem" }}>

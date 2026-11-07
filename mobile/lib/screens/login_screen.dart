@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../core/session.dart';
 import '../core/widgets.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool startInRegister;
@@ -141,6 +142,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                if (!registerMode) ...[
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ForgotPasswordScreen(initialPhone: phone.text),
+                        ),
+                      ),
+                      child: const Text('Forgot password?'),
+                    ),
+                  ),
+                ],
                 if (registerMode) ...[
                   const SizedBox(height: 12),
                   TextField(

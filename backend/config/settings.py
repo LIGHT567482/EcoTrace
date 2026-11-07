@@ -133,6 +133,7 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_RATES": {
         "admin_login": "5/min",
+        "password_reset": "10/min",
     },
 }
 

@@ -1,9 +1,12 @@
 import os
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.rewards.models import Wallet, get_or_create_wallet
@@ -15,7 +18,7 @@ from apps.waste.models import (
     ItemType,
 )
 
-from .models import AuditLog, Notification
+from .models import AuditLog, Notification, PasswordResetRequest
 
 User = get_user_model()
 
@@ -377,3 +380,211 @@ class PurgeSeedDataTests(TestCase):
         self.assertTrue(admin.is_superuser)
         self.assertTrue(admin.check_password("FirstRunAdminPass123!"))
         self.assertEqual(User.objects.count(), 1)
+
+
+class ChangePasswordTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            phone="+256700111070",
+            password="OriginalPass123!",
+            full_name="Password changer",
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_rejects_an_incorrect_current_password(self):
+        response = self.client.post(
+            "/api/auth/change-password/",
+            {
+                "old_password": "WrongPass123!",
+                "new_password": "BrandNewPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("old_password", response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("OriginalPass123!"))
+
+    def test_changes_password_and_burns_pending_reset_codes(self):
+        pending = PasswordResetRequest.objects.create(user=self.user)
+
+        response = self.client.post(
+            "/api/auth/change-password/",
+            {
+                "old_password": "OriginalPass123!",
+                "new_password": "BrandNewPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("BrandNewPass123!"))
+        pending.refresh_from_db()
+        self.assertIsNotNone(pending.consumed_at)
+
+    def test_requires_authentication(self):
+        anonymous = APIClient()
+        response = anonymous.post(
+            "/api/auth/change-password/",
+            {
+                "old_password": "OriginalPass123!",
+                "new_password": "BrandNewPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+
+class PasswordResetTests(TestCase):
+    def setUp(self):
+        cache.clear()  # keep scoped throttles from leaking between tests
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            phone="+256700111071",
+            password="OriginalPass123!",
+            full_name="Locked out",
+        )
+        self.admin = User.objects.create_user(
+            phone="+256700111072",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Helpful admin",
+        )
+
+    def request_reset(self, phone="+256700111071"):
+        return self.client.post(
+            "/api/auth/password-reset/request/",
+            {"phone": phone},
+            format="json",
+        )
+
+    def confirm(self, code, phone="+256700111071", password="FreshPass123!"):
+        return self.client.post(
+            "/api/auth/password-reset/confirm/",
+            {"phone": phone, "code": code, "new_password": password},
+            format="json",
+        )
+
+    def test_request_opens_a_reset_and_notifies_the_administrator(self):
+        response = self.request_reset()
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(PasswordResetRequest.objects.count(), 1)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.admin, title="Password reset requested"
+            ).exists()
+        )
+
+    def test_reply_is_identical_for_known_and_unknown_numbers(self):
+        unknown = self.request_reset("+256700111099")
+        known = self.request_reset()
+
+        self.assertEqual(unknown.status_code, 200)
+        self.assertEqual(unknown.data["detail"], known.data["detail"])
+        self.assertEqual(PasswordResetRequest.objects.count(), 1)
+        self.assertFalse(User.objects.filter(phone="+256700111099").exists())
+
+    def test_administrator_can_read_the_active_code(self):
+        self.request_reset()
+
+        admin_client = APIClient()
+        admin_client.force_authenticate(user=self.admin)
+        response = admin_client.get("/api/auth/password-reset/requests/")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(len(response.data), 1)
+        row = response.data[0]
+        self.assertEqual(row["phone"], "+256700111071")
+        self.assertEqual(row["user"], "Locked out")
+        self.assertRegex(row["code"], r"^\d{6}$")
+        self.assertEqual(row["code"], PasswordResetRequest.objects.get().code)
+
+    def test_non_administrators_cannot_list_reset_requests(self):
+        self.request_reset()
+        owner_client = APIClient()
+        owner_client.force_authenticate(user=self.user)
+
+        response = owner_client.get("/api/auth/password-reset/requests/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_valid_code_sets_a_new_password_and_signs_the_user_in(self):
+        self.request_reset()
+        code = PasswordResetRequest.objects.get().code
+
+        response = self.confirm(code)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("access", response.data)
+        self.assertEqual(response.data["user"]["phone"], "+256700111071")
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("FreshPass123!"))
+
+        old_login = APIClient().post(
+            "/api/auth/token/",
+            {"phone": "+256700111071", "password": "OriginalPass123!"},
+            format="json",
+        )
+        self.assertEqual(old_login.status_code, 401)
+
+    def test_wrong_code_is_rejected(self):
+        self.request_reset()
+
+        response = self.confirm("000000")
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("code", response.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("OriginalPass123!"))
+        self.assertFalse(
+            PasswordResetRequest.objects.get().is_consumed,
+            "A failed attempt must not burn the code",
+        )
+
+    def test_expired_code_is_rejected_and_hidden_from_the_administrator(self):
+        self.request_reset()
+        PasswordResetRequest.objects.update(
+            created_at=timezone.now()
+            - PasswordResetRequest.CODE_TTL
+            - timedelta(minutes=1)
+        )
+        code = PasswordResetRequest.objects.get().code
+
+        response = self.confirm(code)
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("OriginalPass123!"))
+
+        admin_client = APIClient()
+        admin_client.force_authenticate(user=self.admin)
+        self.assertEqual(
+            admin_client.get("/api/auth/password-reset/requests/").data, []
+        )
+
+    def test_a_code_can_only_be_used_once(self):
+        self.request_reset()
+        code = PasswordResetRequest.objects.get().code
+
+        first = self.confirm(code)
+        second = self.confirm(code, password="AnotherPass123!")
+
+        self.assertEqual(first.status_code, 200, first.content)
+        self.assertEqual(second.status_code, 400, second.content)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("FreshPass123!"))
+
+    def test_new_requests_replace_older_codes(self):
+        self.request_reset()
+        old_code = PasswordResetRequest.objects.get().code
+        self.request_reset()
+        fresh = PasswordResetRequest.objects.order_by("-created_at").first()
+
+        self.assertNotEqual(fresh.code, old_code)
+        self.assertEqual(self.confirm(old_code).status_code, 400)
+        self.assertEqual(self.confirm(fresh.code).status_code, 200)

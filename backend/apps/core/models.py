@@ -1,5 +1,11 @@
+import hashlib
+import hmac
+from datetime import timedelta
+
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.utils import timezone
 
 
 class Role(models.TextChoices):
@@ -108,5 +114,62 @@ class AuditLog(models.Model):
 class SuspendedSystemSetting(models.Model):
     maintenance_mode = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class PasswordResetRequest(models.Model):
+    """Single-use reset code an administrator relays to the account owner.
+
+    There is no SMS or e-mail provider in this system, so the code is derived
+    from the server secret instead of being stored: verification and the
+    administrator view both recompute it, and nothing sensitive is persisted.
+    """
+
+    CODE_TTL = timedelta(minutes=15)
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Password reset for {self.user_id}"
+
+    @property
+    def expires_at(self):
+        return self.created_at + self.CODE_TTL
+
+    @property
+    def is_consumed(self):
+        return self.consumed_at is not None
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_pending(self):
+        return not self.is_consumed and not self.is_expired
+
+    @property
+    def code(self):
+        material = f"ecotrace:password-reset:{self.pk}".encode()
+        digest = hmac.new(
+            settings.SECRET_KEY.encode(), material, hashlib.sha256
+        ).hexdigest()
+        return f"{int(digest[:8], 16) % 1000000:06d}"
+
+    def check_code(self, code):
+        return hmac.compare_digest(str(code).strip(), self.code)
+
+    def consume(self):
+        self.consumed_at = timezone.now()
+        self.save(update_fields=["consumed_at"])
+
 
 User.Role = Role

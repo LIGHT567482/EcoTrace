@@ -160,6 +160,60 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Asks the server to open a password-reset ticket for [phone].
+  /// The reply is deliberately identical whether or not the number exists.
+  Future<String> requestPasswordReset(String phone) async {
+    final data = await api.request(
+      '/auth/password-reset/request/',
+      method: 'POST',
+      body: {'phone': phone},
+      auth: false,
+    ) as Map<String, dynamic>;
+    if (data['_offline'] == true) {
+      throw OfflineException('Password reset needs a connection.');
+    }
+    return (data['detail'] ?? '').toString();
+  }
+
+  /// Exchanges the administrator-issued code for a brand-new password and
+  /// signs the user straight in with the returned tokens.
+  Future<void> confirmPasswordReset({
+    required String phone,
+    required String code,
+    required String newPassword,
+  }) async {
+    final data = await api.request(
+      '/auth/password-reset/confirm/',
+      method: 'POST',
+      body: {'phone': phone, 'code': code, 'new_password': newPassword},
+      auth: false,
+    ) as Map<String, dynamic>;
+    if (data['_offline'] == true) {
+      throw OfflineException('Password reset needs a connection.');
+    }
+    await api.saveTokens(data['access'] as String, data['refresh'] as String);
+    user = AppUser.fromJson(data['user'] as Map<String, dynamic>);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user', jsonEncode(user!.toJson()));
+    offlineMode = false;
+    notifyListeners();
+    unawaited(api.syncNow());
+  }
+
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final data = await api.request(
+      '/auth/change-password/',
+      method: 'POST',
+      body: {'old_password': oldPassword, 'new_password': newPassword},
+    );
+    if (data is Map<String, dynamic> && data['_offline'] == true) {
+      throw OfflineException('Changing your password needs a connection.');
+    }
+  }
+
   @override
   void dispose() {
     _syncSub?.cancel();

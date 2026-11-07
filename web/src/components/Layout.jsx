@@ -132,6 +132,12 @@ export default function Layout() {
             </small>
           </div>
           <button
+            className="btn ghost"
+            onClick={() => navigate("/account/password")}
+          >
+            Change password
+          </button>
+          <button
             className="btn danger"
             onClick={() => {
               logout();

@@ -105,6 +105,38 @@ export function logout() {
   clearTokens();
 }
 
+export async function requestPasswordReset(phone) {
+  return api("/auth/password-reset/request/", {
+    method: "POST",
+    body: { phone },
+    auth: false,
+  });
+}
+
+export async function confirmPasswordReset(payload) {
+  const data = await api("/auth/password-reset/confirm/", {
+    method: "POST",
+    body: payload,
+    auth: false,
+  });
+  if (data.access) {
+    setTokens(data);
+    cacheUser(data.user);
+  }
+  return data;
+}
+
+export async function changePassword(old_password, new_password) {
+  return api("/auth/change-password/", {
+    method: "POST",
+    body: { old_password, new_password },
+  });
+}
+
+export async function listPasswordResetRequests() {
+  return api("/auth/password-reset/requests/");
+}
+
 export function formatUGX(value) {
   return `UGX ${Number(value || 0).toLocaleString()}`;
 }
