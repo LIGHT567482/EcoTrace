@@ -142,22 +142,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                if (!registerMode) ...[
-                  const SizedBox(height: 4),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ForgotPasswordScreen(initialPhone: phone.text),
-                        ),
-                      ),
-                      child: const Text('Forgot password?'),
-                    ),
-                  ),
-                ],
                 if (registerMode) ...[
                   const SizedBox(height: 12),
                   TextField(
@@ -187,6 +171,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             : 'Sign in',
                   ),
                 ),
+                if (!registerMode)
+                  Align(
+                    alignment: Alignment.center,
+                    child: TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ForgotPasswordScreen(initialPhone: phone.text),
+                        ),
+                      ),
+                      child: const Text('Forgot password?'),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 const Text(
                   'One account works everywhere in EcoTrace.',

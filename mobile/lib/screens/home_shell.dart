@@ -80,6 +80,9 @@ class _HomeShellState extends State<HomeShell> {
       },
       child: Scaffold(
         appBar: AppBar(
+          // The inline account block stacks the profile above its buttons,
+          // so the bar needs extra height when the overflow menu is not used.
+          toolbarHeight: useOverflowMenu ? null : 78,
           leading: utilityPage == null
               ? null
               : IconButton(
@@ -260,53 +263,78 @@ class _HomeShellState extends State<HomeShell> {
       );
     }
 
-    return Padding(
-      padding: EdgeInsets.only(right: smallScreen ? 0 : 12),
-      child: Row(
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.only(right: smallScreen ? 0 : 12),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: smallScreen ? 110 : 180),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.fullName.isNotEmpty ? user.fullName : user.phone,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: kInk,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (!smallScreen)
-                  Text(
-                    '${user.role} · ${user.town}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: kMuted, fontSize: 12),
-                  ),
-              ],
+            child: Text(
+              user.fullName.isNotEmpty ? user.fullName : user.phone,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                color: kInk,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Change password',
-            onPressed: () => _openChangePassword(context),
-            icon: const Icon(Icons.key_outlined),
-          ),
-          smallScreen
-              ? IconButton(
-                  tooltip: 'Sign out',
-                  onPressed: () => _confirmLogout(context),
-                  icon: const Icon(Icons.logout),
-                )
-              : TextButton.icon(
-                  onPressed: () => _confirmLogout(context),
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Sign out'),
+          if (!smallScreen)
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: Text(
+                '${user.role} · ${user.town}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: const TextStyle(color: kMuted, fontSize: 12),
+              ),
+            ),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                style: TextButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
+                onPressed: () => _openChangePassword(context),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.key_outlined, size: 16),
+                    SizedBox(width: 4),
+                    Text('Password'),
+                  ],
+                ),
+              ),
+              TextButton(
+                style: TextButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+                onPressed: () => _confirmLogout(context),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.logout, size: 16),
+                    SizedBox(width: 4),
+                    Text('Sign out'),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
+        ),
       ),
     );
   }

@@ -588,3 +588,47 @@ class PasswordResetTests(TestCase):
         self.assertNotEqual(fresh.code, old_code)
         self.assertEqual(self.confirm(old_code).status_code, 400)
         self.assertEqual(self.confirm(fresh.code).status_code, 200)
+
+
+class UserManagementTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            phone="+256700111080",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Deleting admin",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+
+    def test_admin_can_delete_a_user_and_their_records(self):
+        target = User.objects.create_user(
+            phone="+256700111081",
+            password="UserPass123!",
+            full_name="Disposable user",
+        )
+        Notification.objects.create(user=target, title="Belongs to target")
+
+        response = self.client.delete(f"/api/users/{target.pk}/")
+
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(User.objects.filter(pk=target.pk).exists())
+        self.assertFalse(Notification.objects.filter(user_id=target.pk).exists())
+
+    def test_admin_cannot_delete_their_own_account(self):
+        response = self.client.delete(f"/api/users/{self.admin.pk}/")
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+
+    def test_non_administrators_cannot_delete_users(self):
+        target = User.objects.create_user(
+            phone="+256700111082", password="UserPass123!"
+        )
+        owner_client = APIClient()
+        owner_client.force_authenticate(user=target)
+
+        response = owner_client.delete(f"/api/users/{target.pk}/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(User.objects.filter(pk=target.pk).exists())

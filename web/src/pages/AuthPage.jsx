@@ -256,21 +256,6 @@ export default function AuthPage() {
               </button>
             </span>
           </label>
-          {!isRegister && (
-            <p style={{ margin: "0 0 4px", textAlign: "right" }}>
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() =>
-                  navigate("/forgot-password", {
-                    state: { ...location.state, phone: form.phone },
-                  })
-                }
-              >
-                Forgot password?
-              </button>
-            </p>
-          )}
           {isRegister && (
             <>
               <label className="field">
@@ -290,6 +275,21 @@ export default function AuthPage() {
           <button className="btn" disabled={busy}>
             {busy ? "Please wait…" : isRegister ? "Create account" : "Sign in"}
           </button>
+          {!isRegister && (
+            <p style={{ margin: "4px 0 0", textAlign: "center" }}>
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() =>
+                  navigate("/forgot-password", {
+                    state: { ...location.state, phone: form.phone },
+                  })
+                }
+              >
+                Forgot password?
+              </button>
+            </p>
+          )}
         </form>
       </div>
     </div>

@@ -62,6 +62,23 @@ export default function UsersPage() {
     }
   }
 
+  async function remove(u) {
+    const label = u.full_name || u.phone;
+    if (
+      !window.confirm(
+        `Delete ${label}? Their account and records are removed permanently. This cannot be undone.`
+      )
+    )
+      return;
+    setError("");
+    try {
+      await api(`/users/${u.id}/`, { method: "DELETE" });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div>
       <div className="page-head">
@@ -230,6 +247,12 @@ export default function UsersPage() {
                 <td>
                   <button className="btn ghost small" onClick={() => toggle(u.id)}>
                     {u.is_active ? "Disable" : "Enable"}
+                  </button>{" "}
+                  <button
+                    className="btn danger small"
+                    onClick={() => remove(u)}
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>

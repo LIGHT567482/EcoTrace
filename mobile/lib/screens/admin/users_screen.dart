@@ -89,6 +89,37 @@ class _UsersScreenState extends State<UsersScreen> {
     }
   }
 
+  Future<void> remove(_AdminUser u) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete user?'),
+        content: Text(
+          '${u.fullName.isNotEmpty ? u.fullName : u.phone} and their records '
+          'are removed permanently. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final api = context.read<Session>().api;
+      await api.request('/users/${u.id}/', method: 'DELETE');
+      await load();
+    } catch (e) {
+      setState(() => error = e.toString());
+    }
+  }
+
   Future<void> createDialog() async {
     final phone = TextEditingController();
     final name = TextEditingController();
@@ -250,6 +281,11 @@ class _UsersScreenState extends State<UsersScreen> {
                       ),
                       tooltip: u.isActive ? 'Disable' : 'Enable',
                       onPressed: () => toggle(u.id),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      tooltip: 'Delete',
+                      onPressed: () => remove(u),
                     ),
                   ],
                 ),
