@@ -52,10 +52,17 @@ export default function UsersPage() {
     }
   }
 
-  async function toggle(id) {
+  async function toggle(u) {
+    if (
+      u.is_active &&
+      !window.confirm(
+        `Disable ${u.full_name || u.phone}? They will not be able to sign in until re-enabled.`
+      )
+    )
+      return;
     setError("");
     try {
-      await api(`/users/${id}/toggle-active/`, { method: "POST" });
+      await api(`/users/${u.id}/toggle-active/`, { method: "POST" });
       load();
     } catch (err) {
       setError(err.message);
@@ -245,7 +252,7 @@ export default function UsersPage() {
                   </span>
                 </td>
                 <td>
-                  <button className="btn ghost small" onClick={() => toggle(u.id)}>
+                  <button className="btn ghost small" onClick={() => toggle(u)}>
                     {u.is_active ? "Disable" : "Enable"}
                   </button>{" "}
                   <button

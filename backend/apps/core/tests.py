@@ -632,3 +632,80 @@ class UserManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(User.objects.filter(pk=target.pk).exists())
+
+
+class LastAdminGuardTests(TestCase):
+    """The last active administrator can be neither disabled nor deleted."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            phone="+256700111090",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Sole admin",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.admin)
+
+    def test_sole_administrator_cannot_be_disabled(self):
+        response = self.client.post(
+            f"/api/users/{self.admin.pk}/toggle-active/"
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("administrator", response.data["detail"].lower())
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_administrator_can_be_disabled_when_another_one_is_active(self):
+        other = User.objects.create_user(
+            phone="+256700111091",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Second admin",
+        )
+
+        response = self.client.post(
+            f"/api/users/{self.admin.pk}/toggle-active/"
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.admin.refresh_from_db()
+        self.assertFalse(self.admin.is_active)
+
+        # …and can be enabled again once another administrator exists.
+        again = self.client.post(f"/api/users/{self.admin.pk}/toggle-active/")
+        self.assertEqual(again.status_code, 200, again.content)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_only_active_administrator_cannot_be_deleted(self):
+        # A disabled administrator acting on a stale token must not be able
+        # to remove the only account that can still sign in.
+        stale = User.objects.create_user(
+            phone="+256700111092",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Disabled admin",
+            is_active=False,
+        )
+        stale_client = APIClient()
+        stale_client.force_authenticate(user=stale)
+
+        response = stale_client.delete(f"/api/users/{self.admin.pk}/")
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+
+    def test_administrator_can_be_deleted_when_another_one_remains(self):
+        other = User.objects.create_user(
+            phone="+256700111093",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Spare admin",
+        )
+
+        response = self.client.delete(f"/api/users/{other.pk}/")
+
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(User.objects.filter(pk=other.pk).exists())

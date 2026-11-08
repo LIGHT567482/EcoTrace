@@ -31,6 +31,7 @@ class _HomeShellState extends State<HomeShell> {
   int index = 0;
   String? utilityPage;
   Timer? _refreshTimer;
+  bool _accountMenuOpen = false;
 
   @override
   void initState() {
@@ -213,8 +214,17 @@ class _HomeShellState extends State<HomeShell> {
     if (overflowMenu) {
       return PopupMenuButton<String>(
         tooltip: 'Account options',
-        icon: const Icon(Icons.more_vert),
+        icon: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: Icon(
+            _accountMenuOpen ? Icons.close : Icons.more_vert,
+            key: ValueKey(_accountMenuOpen),
+          ),
+        ),
+        onOpened: () => setState(() => _accountMenuOpen = true),
+        onCanceled: () => setState(() => _accountMenuOpen = false),
         onSelected: (value) {
+          setState(() => _accountMenuOpen = false);
           if (value == 'logout') _confirmLogout(context);
           if (value == 'password') _openChangePassword(context);
         },

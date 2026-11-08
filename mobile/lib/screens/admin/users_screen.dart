@@ -79,10 +79,33 @@ class _UsersScreenState extends State<UsersScreen> {
     }
   }
 
-  Future<void> toggle(int id) async {
+  Future<void> toggle(_AdminUser u) async {
+    if (u.isActive) {
+      final name = u.fullName.isNotEmpty ? u.fullName : u.phone;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Disable user?'),
+          content: Text(
+            '$name will not be able to sign in until re-enabled.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Disable'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     try {
       final api = context.read<Session>().api;
-      await api.request('/users/$id/toggle-active/', method: 'POST');
+      await api.request('/users/${u.id}/toggle-active/', method: 'POST');
       await load();
     } catch (e) {
       setState(() => error = e.toString());
@@ -280,7 +303,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         size: 20,
                       ),
                       tooltip: u.isActive ? 'Disable' : 'Enable',
-                      onPressed: () => toggle(u.id),
+                      onPressed: () => toggle(u),
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, size: 20),

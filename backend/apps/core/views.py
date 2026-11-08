@@ -160,9 +160,28 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
+    @staticmethod
+    def _another_active_admin(user):
+        """True when some other active administrator still exists."""
+        return User.objects.filter(
+            role=User.Role.ADMIN, is_active=True
+        ).exclude(pk=user.pk).exists()
+
     @action(detail=True, methods=["post"], url_path="toggle-active")
     def toggle_active(self, request, pk=None):
         user = self.get_object()
+        if (
+            user.is_active
+            and user.role == User.Role.ADMIN
+            and not self._another_active_admin(user)
+        ):
+            return Response(
+                {
+                    "detail": "This is the only active administrator. "
+                    "Enable or create another administrator first."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         user.is_active = not user.is_active
         user.save(update_fields=["is_active"])
         return Response(UserSerializer(user).data)
@@ -172,6 +191,18 @@ class UserViewSet(viewsets.ModelViewSet):
         if user.pk == request.user.pk:
             return Response(
                 {"detail": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if (
+            user.is_active
+            and user.role == User.Role.ADMIN
+            and not self._another_active_admin(user)
+        ):
+            return Response(
+                {
+                    "detail": "This is the only active administrator. "
+                    "Enable or create another administrator first."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return super().destroy(request, *args, **kwargs)
