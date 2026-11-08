@@ -65,6 +65,8 @@ export default function NotificationsPage() {
   }
 
   async function remove(notificationId) {
+    if (!window.confirm("Delete this notification? This cannot be undone."))
+      return;
     setError("");
     try {
       await api(`/auth/notifications/${notificationId}/`, { method: "DELETE" });

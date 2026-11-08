@@ -20,6 +20,13 @@ export default function RedemptionsPage() {
   useEffect(load, [search, statusFilter]);
 
   async function decide(id, action, reason) {
+    if (
+      action === "reject" &&
+      !window.confirm(
+        "Reject this redemption? The points will be refunded to the wallet."
+      )
+    )
+      return;
     setError("");
     setSuccess("");
     try {

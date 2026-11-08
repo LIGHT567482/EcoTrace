@@ -62,6 +62,28 @@ class _CategoriesScreenState extends State<CategoriesScreen> {
   }
 
   Future<void> toggle(ItemType t) async {
+    if (t.isActive) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Disable item type?'),
+          content: Text(
+            '${t.name} will stop earning rewards until re-enabled.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Disable'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     try {
       final api = context.read<Session>().api;
       await api.request(

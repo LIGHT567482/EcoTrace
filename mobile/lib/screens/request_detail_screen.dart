@@ -57,6 +57,44 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Future<void> act(String path, [Map<String, dynamic>? body]) async {
+    const confirmations = <String, (String, String, String)>{
+      'cancel': (
+        'Cancel request?',
+        'This cannot be undone.',
+        'Cancel request',
+      ),
+      'reject': (
+        'Reject consignment?',
+        'Nothing will be credited for it.',
+        'Reject',
+      ),
+      'release': (
+        'Release pickup?',
+        'The assignment will be removed.',
+        'Release',
+      ),
+    };
+    final confirmation = confirmations[path];
+    if (confirmation != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(confirmation.$1),
+          content: Text(confirmation.$2),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Back'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(confirmation.$3),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     setState(() {
       busy = true;
       error = '';

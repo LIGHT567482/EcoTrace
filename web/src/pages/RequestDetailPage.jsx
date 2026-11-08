@@ -20,6 +20,12 @@ export default function RequestDetailPage() {
   useEffect(load, [load]);
 
   async function act(path, body) {
+    const confirmations = {
+      cancel: "Cancel this request? This cannot be undone.",
+      reject: "Reject this consignment? Nothing will be credited for it.",
+      release: "Release this pickup? The assignment will be removed.",
+    };
+    if (confirmations[path] && !window.confirm(confirmations[path])) return;
     setError("");
     try {
       await api(`/requests/${id}/${path}/`, { method: "POST", body: body || {} });

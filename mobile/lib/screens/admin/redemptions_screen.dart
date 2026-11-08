@@ -40,6 +40,28 @@ class _RedemptionsScreenState extends State<RedemptionsScreen> {
   }
 
   Future<void> decide(int id, String action) async {
+    if (action == 'reject') {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Reject redemption?'),
+          content: const Text(
+            'The points will be refunded to the wallet.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Reject'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
     setState(() {
       error = '';
       success = '';

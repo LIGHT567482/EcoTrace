@@ -67,10 +67,16 @@ export default function ItemsPage() {
     }
   }
 
-  async function remove(id) {
+  async function remove(item) {
+    if (
+      !window.confirm(
+        `Delete ${item.type_name || "this item"}? This cannot be undone.`
+      )
+    )
+      return;
     setError("");
     try {
-      await api(`/items/${id}/`, { method: "DELETE" });
+      await api(`/items/${item.id}/`, { method: "DELETE" });
       loadItems();
     } catch (err) {
       setError(err.message || "Cannot delete this item.");
@@ -195,7 +201,7 @@ export default function ItemsPage() {
                 <div className="right">
                   <small>{Number(it.points).toLocaleString()} base pts</small>
                   <br />
-                  <button className="btn ghost small" onClick={() => remove(it.id)}>
+                  <button className="btn ghost small" onClick={() => remove(it)}>
                     Remove
                   </button>
                 </div>

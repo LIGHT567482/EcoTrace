@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -293,6 +294,35 @@ class AdminBootstrapTests(TestCase):
             User.objects.get(phone="+256700111051").role,
             User.Role.CONSUMER,
         )
+
+    @patch.dict(
+        os.environ,
+        {
+            "ECOTRACE_ADMIN_PHONE": "+256700111052",
+            "ECOTRACE_ADMIN_PASSWORD": "FirstRunAdminPass123!",
+        },
+    )
+    def test_reactivates_a_disabled_administrator(self):
+        call_command("bootstrap_admin")
+        admin = User.objects.get(phone="+256700111052")
+        self.assertTrue(admin.is_active)
+
+        # Simulate an accidental disable (and a stray demotion) in the
+        # database; the next bootstrap run must restore full access.
+        User.objects.filter(pk=admin.pk).update(
+            is_active=False,
+            is_staff=False,
+            role=User.Role.CONSUMER,
+        )
+
+        call_command("bootstrap_admin")
+        admin.refresh_from_db()
+
+        self.assertTrue(admin.is_active)
+        self.assertTrue(admin.is_staff)
+        self.assertTrue(admin.is_superuser)
+        self.assertEqual(admin.role, User.Role.ADMIN)
+        self.assertTrue(admin.check_password("FirstRunAdminPass123!"))
 
 
 class PurgeSeedDataTests(TestCase):
@@ -709,3 +739,156 @@ class LastAdminGuardTests(TestCase):
 
         self.assertEqual(response.status_code, 204, response.content)
         self.assertFalse(User.objects.filter(pk=other.pk).exists())
+
+    def test_sole_administrator_cannot_be_disabled_through_update(self):
+        response = self.client.patch(
+            f"/api/users/{self.admin.pk}/",
+            {"is_active": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("administrator", response.data["detail"].lower())
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_sole_administrator_cannot_be_demoted_through_update(self):
+        response = self.client.patch(
+            f"/api/users/{self.admin.pk}/",
+            {"role": User.Role.CONSUMER},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("administrator", response.data["detail"].lower())
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, User.Role.ADMIN)
+
+    def test_administrator_can_be_updated_when_another_one_is_active(self):
+        User.objects.create_user(
+            phone="+256700111095",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Second admin",
+        )
+
+        disabled = self.client.patch(
+            f"/api/users/{self.admin.pk}/",
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(disabled.status_code, 200, disabled.content)
+        self.admin.refresh_from_db()
+        self.assertFalse(self.admin.is_active)
+
+        enabled = self.client.patch(
+            f"/api/users/{self.admin.pk}/",
+            {"is_active": True},
+            format="json",
+        )
+        self.assertEqual(enabled.status_code, 200, enabled.content)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+
+class DjangoAdminLastAdminGuardTests(TestCase):
+    """The /admin/ interface honours the last-administrator protection."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            phone="+256700111096",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Sole admin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.client.force_login(self.admin)
+
+    def _change_payload(self, **overrides):
+        data = {
+            "phone": self.admin.phone,
+            "full_name": "Sole admin",
+            "role": User.Role.ADMIN,
+            "town": "Kansanga",
+            "address": "",
+            "latitude": "",
+            "longitude": "",
+            "is_active": "on",
+            "is_staff": "on",
+            "is_superuser": "on",
+            "date_joined_0": self.admin.date_joined.strftime("%Y-%m-%d"),
+            "date_joined_1": self.admin.date_joined.strftime("%H:%M:%S"),
+            "_save": "Save",
+        }
+        data.update(overrides)
+        return data
+
+    def test_change_form_cannot_disable_the_sole_administrator(self):
+        payload = self._change_payload()
+        payload.pop("is_active")
+        url = reverse("admin:core_user_change", args=[self.admin.pk])
+
+        response = self.client.post(url, payload, follow=True)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+        messages = [str(m) for m in response.context["messages"]]
+        self.assertTrue(
+            any("only active administrator" in m for m in messages),
+            messages,
+        )
+
+    def test_change_form_disables_an_administrator_when_another_exists(self):
+        User.objects.create_user(
+            phone="+256700111097",
+            password="AdminPass123!",
+            role=User.Role.ADMIN,
+            full_name="Second admin",
+            is_staff=True,
+            is_superuser=True,
+        )
+        payload = self._change_payload()
+        payload.pop("is_active")
+        url = reverse("admin:core_user_change", args=[self.admin.pk])
+
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, 302, response.content)
+        self.admin.refresh_from_db()
+        self.assertFalse(self.admin.is_active)
+
+    def test_delete_view_cannot_remove_the_sole_administrator(self):
+        url = reverse("admin:core_user_delete", args=[self.admin.pk])
+
+        response = self.client.post(url, {"post": "yes"}, follow=True)
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+        messages = [str(m) for m in response.context["messages"]]
+        self.assertTrue(
+            any("only active administrator" in m for m in messages),
+            messages,
+        )
+
+    def test_bulk_delete_cannot_remove_the_sole_administrator(self):
+        url = reverse("admin:core_user_changelist")
+
+        response = self.client.post(
+            url,
+            {
+                "action": "delete_selected",
+                "_selected_action": [str(self.admin.pk)],
+                "post": "yes",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+        messages = [str(m) for m in response.context["messages"]]
+        self.assertTrue(
+            any("only active administrator" in m for m in messages),
+            messages,
+        )

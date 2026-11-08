@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -166,6 +167,26 @@ class UserViewSet(viewsets.ModelViewSet):
         return User.objects.filter(
             role=User.Role.ADMIN, is_active=True
         ).exclude(pk=user.pk).exists()
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        changes = serializer.validated_data
+        was_active_admin = instance.is_active and instance.role == User.Role.ADMIN
+        still_active_admin = changes.get(
+            "is_active", instance.is_active
+        ) and changes.get("role", instance.role) == User.Role.ADMIN
+        if (
+            was_active_admin
+            and not still_active_admin
+            and not self._another_active_admin(instance)
+        ):
+            raise ValidationError(
+                {
+                    "detail": "This is the only active administrator. "
+                    "Enable or create another administrator first."
+                }
+            )
+        super().perform_update(serializer)
 
     @action(detail=True, methods=["post"], url_path="toggle-active")
     def toggle_active(self, request, pk=None):

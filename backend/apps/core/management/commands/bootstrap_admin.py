@@ -27,10 +27,32 @@ class Command(BaseCommand):
                     "ECOTRACE_ADMIN_PHONE belongs to a non-administrator account. "
                     "Choose a phone number that is not already registered."
                 )
+            restored = []
+            if not user.is_active:
+                user.is_active = True
+                restored.append("is_active")
             if not user.is_staff:
                 user.is_staff = True
-                user.save(update_fields=["is_staff"])
-            self.stdout.write("Administrator already exists; credentials unchanged.")
+                restored.append("is_staff")
+            if not user.is_superuser:
+                user.is_superuser = True
+                restored.append("is_superuser")
+            if user.role != User.Role.ADMIN:
+                user.role = User.Role.ADMIN
+                restored.append("role")
+            if restored:
+                user.save(update_fields=restored)
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Administrator already exists; restored access ("
+                        + ", ".join(restored)
+                        + ")."
+                    )
+                )
+            else:
+                self.stdout.write(
+                    "Administrator already exists; credentials unchanged."
+                )
             return
 
         User.objects.create_superuser(

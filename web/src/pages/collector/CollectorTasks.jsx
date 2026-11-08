@@ -18,6 +18,13 @@ export default function CollectorTasks() {
   useEffect(load, [search]);
 
   async function act(id, path, body) {
+    if (
+      path === "release" &&
+      !window.confirm(
+        "Release this pickup? It will return to the available list."
+      )
+    )
+      return;
     setError("");
     try {
       await api(`/requests/${id}/${path}`, { method: "POST", body: body || {} });

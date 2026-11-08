@@ -77,12 +77,19 @@ export default function CategoriesPage() {
     }
   }
 
-  async function toggleActive(id, isActive) {
+  async function toggleActive(t) {
+    if (
+      t.is_active &&
+      !window.confirm(
+        `Disable ${t.name}? It will stop earning rewards until re-enabled.`
+      )
+    )
+      return;
     setError("");
     try {
-      await api(`/item-types/${id}/`, {
+      await api(`/item-types/${t.id}/`, {
         method: "PATCH",
-        body: { is_active: !isActive },
+        body: { is_active: !t.is_active },
       });
       load();
     } catch (err) {
@@ -189,7 +196,7 @@ export default function CategoriesPage() {
                       <td>
                         <button
                           className="btn ghost small"
-                          onClick={() => toggleActive(t.id, t.is_active)}
+                          onClick={() => toggleActive(t)}
                         >
                           {t.is_active ? "Disable" : "Enable"}
                         </button>
