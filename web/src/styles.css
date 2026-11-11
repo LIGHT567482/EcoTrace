@@ -165,6 +165,20 @@ small {
   height: 2px;
   border-radius: 2px;
   background: currentColor;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.menu-toggle[aria-expanded="true"] .menu-toggle-icon span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.menu-toggle[aria-expanded="true"] .menu-toggle-icon span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.menu-toggle[aria-expanded="true"] .menu-toggle-icon span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
 }
 
 .sidebar-foot {
@@ -1755,6 +1769,10 @@ span.lp-logo {
   .pie-chart-slice,
   .chart-bar {
     animation: none;
+  }
+
+  .menu-toggle-icon span {
+    transition: none;
   }
 }
 

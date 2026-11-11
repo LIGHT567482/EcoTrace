@@ -215,7 +215,16 @@ class _HomeShellState extends State<HomeShell> {
       return PopupMenuButton<String>(
         tooltip: 'Account options',
         icon: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
+          duration: const Duration(milliseconds: 200),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.6, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              ),
+              child: child,
+            ),
+          ),
           child: Icon(
             _accountMenuOpen ? Icons.close : Icons.more_vert,
             key: ValueKey(_accountMenuOpen),
