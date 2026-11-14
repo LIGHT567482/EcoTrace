@@ -64,7 +64,8 @@ function ActivityTable({ entries, print = false }) {
   const renderEntry = (entry) => (
     <tr key={entry.id}>
       <td>{formatDate(entry.created_at)}</td>
-      <td>{entry.actor_name || entry.actor_phone || "Unauthenticated"}</td>
+      <td>{entry.actor_name || "—"}</td>
+      <td>{entry.actor_phone || "Unauthenticated"}</td>
       <td>{describeActivity(entry)}</td>
       <td>{entry.status_code >= 400 ? "Not completed" : "Completed"}</td>
     </tr>
@@ -77,6 +78,7 @@ function ActivityTable({ entries, print = false }) {
           <tr>
             <th>Time</th>
             <th>Person</th>
+            <th>Username (phone)</th>
             <th>What happened</th>
             <th>Outcome</th>
           </tr>
@@ -85,7 +87,7 @@ function ActivityTable({ entries, print = false }) {
           {leadingEntries.map(renderEntry)}
           {!entries.length && (
             <tr>
-              <td className="empty" colSpan={4}>
+              <td className="empty" colSpan={5}>
                 No matching activity found.
               </td>
             </tr>
