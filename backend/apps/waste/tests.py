@@ -1,6 +1,8 @@
 import re
+from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -471,4 +473,47 @@ class EcoTraceFlowTests(TestCase):
                 user=self.recycler,
                 title="Full drop-off point: collection needed",
             ).exists()
+        )
+
+
+class DemoDataCommandTests(TestCase):
+    def test_seed_command_is_idempotent_and_does_not_change_existing_users(self):
+        existing_consumer = make_user("+256700111101", User.Role.CONSUMER)
+        admin = make_user("+256700111102", User.Role.ADMIN)
+
+        call_command("seed_demo_data")
+        call_command("seed_demo_data")
+
+        demo_users = User.objects.filter(phone__startswith="+256700900")
+        self.assertEqual(demo_users.count(), 3)
+        for user in demo_users:
+            requests = CollectionRequest.objects.filter(
+                consumer=user,
+                consumer_note__startswith="DEMO DATA:",
+            )
+            self.assertEqual(requests.count(), 3)
+            self.assertFalse(user.has_usable_password())
+            self.assertTrue(
+                all(
+                    request.status == CollectionRequest.Status.CANCELLED
+                and request.items.filter(
+                    notes__startswith="DEMO DATA:"
+                ).exists()
+                for request in requests
+            )
+            )
+
+        self.assertFalse(
+            CollectionRequest.objects.filter(consumer=existing_consumer).exists()
+        )
+        self.assertFalse(CollectionRequest.objects.filter(consumer=admin).exists())
+
+    def test_seed_command_dry_run_does_not_write_data(self):
+        output = StringIO()
+        call_command("seed_demo_data", dry_run=True, stdout=output)
+
+        self.assertIn("Would create EcoTrace Demo Consumer 001", output.getvalue())
+        self.assertFalse(User.objects.filter(phone__startswith="+256700900").exists())
+        self.assertFalse(
+            Category.objects.filter(slug="ecotrace-demo-electronics").exists()
         )
